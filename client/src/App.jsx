@@ -4,9 +4,11 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
+import InsightsSection from './components/InsightsSection';
 import TransactionsSection from './components/TransactionsSection';
 import EmptyState from './components/EmptyState';
 import TransactionModal from './components/TransactionModal';
+import StatementUploadModal from './components/StatementUploadModal';
 import ConfirmModal from './components/ConfirmModal';
 import ToastContainer from './components/ToastContainer';
 
@@ -15,6 +17,7 @@ export default function App() {
     transactions, loading,
     transactionModalOpen, editTransaction, closeTransactionModal,
     transactionToDelete, closeDeleteModal,
+    uploadModalOpen, closeUploadModal,
     refetch, addToast, toasts,
   } = useApp();
 
@@ -45,6 +48,7 @@ export default function App() {
           <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
             <section id="stats"><StatsCards /></section>
             <section id="charts"><ChartsSection /></section>
+            <section id="insights"><InsightsSection /></section>
             <section id="transactions"><TransactionsSection /></section>
           </main>
         )}
@@ -54,6 +58,10 @@ export default function App() {
         open={transactionModalOpen}
         transaction={editTransaction}
         onClose={closeTransactionModal}
+      />
+      <StatementUploadModal
+        open={uploadModalOpen}
+        onClose={closeUploadModal}
       />
       <ConfirmModal
         open={transactionToDelete !== null}

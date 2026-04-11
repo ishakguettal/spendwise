@@ -15,10 +15,14 @@ export function AppProvider({ children }) {
   const [summary,       setSummary]       = useState(null);
   const [loading,       setLoading]       = useState(true);
 
+  // ── Autopsy state (session-only) ──────────────────────────────────────────
+  const [autopsy, setAutopsy] = useState(null);
+
   // ── Modal state ───────────────────────────────────────────────────────────
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [editTransaction,      setEditTransaction]      = useState(null);
   const [transactionToDelete,  setTransactionToDelete]  = useState(null);
+  const [uploadModalOpen,      setUploadModalOpen]      = useState(false);
 
   // ── Toast state ───────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState([]);
@@ -47,6 +51,9 @@ export function AppProvider({ children }) {
 
   const openDeleteModal  = useCallback((tx) => setTransactionToDelete(tx), []);
   const closeDeleteModal = useCallback(() => setTransactionToDelete(null), []);
+
+  const openUploadModal  = useCallback(() => setUploadModalOpen(true), []);
+  const closeUploadModal = useCallback(() => setUploadModalOpen(false), []);
 
   // ── Fetching ──────────────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
@@ -82,10 +89,13 @@ export function AppProvider({ children }) {
       // data
       selectedMonth, setSelectedMonth,
       transactions, summary, loading, refetch,
+      // autopsy
+      autopsy, setAutopsy,
       // modals
       transactionModalOpen, editTransaction, transactionToDelete,
       openAddModal, openEditModal, closeTransactionModal,
       openDeleteModal, closeDeleteModal,
+      uploadModalOpen, openUploadModal, closeUploadModal,
       // toasts
       toasts, addToast,
     }}>

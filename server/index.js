@@ -4,6 +4,7 @@ import cors from 'cors';
 import db from './db/database.js'; // runs schema creation on import
 import transactionsRouter from './routes/transactions.js';
 import summaryRouter from './routes/summary.js';
+import statementsRouter from './routes/statements.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,6 +17,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/summary', summaryRouter);
+app.use('/api/statements', statementsRouter);
 
 app.listen(PORT, () => {
   console.log(`Spendwise server running on http://localhost:${PORT}`);

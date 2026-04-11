@@ -16,7 +16,7 @@ function getLast12Months() {
 const MONTHS = getLast12Months();
 
 export default function TopBar() {
-  const { selectedMonth, setSelectedMonth, openAddModal } = useApp();
+  const { selectedMonth, setSelectedMonth, openAddModal, openUploadModal } = useApp();
 
   return (
     <header className="sticky top-0 z-40 h-14 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between px-6">
@@ -31,7 +31,10 @@ export default function TopBar() {
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
-        <button className="px-4 py-1.5 rounded-lg border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-800 transition-colors duration-150">
+        <button
+          onClick={openUploadModal}
+          className="px-4 py-1.5 rounded-lg border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-800 transition-colors duration-150"
+        >
           Upload Statement
         </button>
         <button

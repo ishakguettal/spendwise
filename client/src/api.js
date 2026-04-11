@@ -7,7 +7,11 @@ async function request(path, options = {}) {
   });
   if (res.status === 204) return null;
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(body.error ?? `HTTP ${res.status}`);
+    if (body.fallback) err.fallback = body.fallback;
+    throw err;
+  }
   return body;
 }
 
@@ -26,4 +30,26 @@ export const api = {
     request(`/api/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id) =>
     request(`/api/transactions/${id}`, { method: 'DELETE' }),
+
+  uploadStatement: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    // No Content-Type header — let the browser set it with the boundary
+    return fetch(`${BASE}/api/statements/upload`, { method: 'POST', body: form })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = new Error(body.error ?? `HTTP ${res.status}`);
+          if (body.fallback) err.fallback = body.fallback;
+          throw err;
+        }
+        return body;
+      });
+  },
+
+  uploadStatementText: (text) =>
+    request('/api/statements/upload', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 };
