@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { createHash } from 'crypto';
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import { PDFParse } from 'pdf-parse';
 import db from '../db/database.js';
 import { VALID_CATEGORIES } from './transactions.js';
 import { invalidateInsightsCache } from '../helpers/invalidateInsightsCache.js';
@@ -50,7 +50,9 @@ router.post('/upload', conditionalUpload, async (req, res) => {
 
     // Extract text from PDF
     try {
-      const parsed = await pdfParse(req.file.buffer);
+      const parser = new PDFParse({ data: req.file.buffer });
+      const parsed = await parser.getText();
+      await parser.destroy();
       text = parsed.text ?? '';
     } catch {
       return res.status(422).json({
