@@ -16,7 +16,7 @@ function getLast12Months() {
 const MONTHS = getLast12Months();
 
 export default function TopBar() {
-  const { selectedMonth, setSelectedMonth } = useApp();
+  const { selectedMonth, setSelectedMonth, openAddModal } = useApp();
 
   return (
     <header className="sticky top-0 z-40 h-14 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between px-6">
@@ -25,18 +25,19 @@ export default function TopBar() {
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-700 cursor-pointer"
+          className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:border-neutral-700 cursor-pointer transition-colors duration-150"
         >
           {MONTHS.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
+            <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
-        <button className="px-4 py-1.5 rounded-xl border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-800 transition-colors">
+        <button className="px-4 py-1.5 rounded-lg border border-neutral-800 text-sm text-neutral-300 hover:bg-neutral-800 transition-colors duration-150">
           Upload Statement
         </button>
-        <button className="px-4 py-1.5 rounded-xl bg-emerald-500 text-neutral-950 text-sm font-medium hover:bg-emerald-400 transition-colors">
+        <button
+          onClick={openAddModal}
+          className="px-4 py-1.5 rounded-lg bg-emerald-500 text-neutral-950 text-sm font-medium hover:bg-emerald-400 transition-colors duration-150"
+        >
           + Add
         </button>
       </div>

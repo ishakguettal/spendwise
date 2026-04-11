@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db/database.js';
 import { invalidateInsightsCache } from '../helpers/invalidateInsightsCache.js';
+import { categorizeTransaction } from '../prompts/categorize.js';
 
 const router = Router();
 
@@ -34,9 +35,9 @@ router.get('/', (req, res) => {
   let sql = 'SELECT * FROM transactions WHERE 1=1';
   const params = [];
 
-  if (month) { sql += ' AND date LIKE ?'; params.push(`${month}-%`); }
-  if (type)  { sql += ' AND type = ?';    params.push(type); }
-  if (category) { sql += ' AND category = ?'; params.push(category); }
+  if (month)    { sql += ' AND date LIKE ?';     params.push(`${month}-%`); }
+  if (type)     { sql += ' AND type = ?';        params.push(type); }
+  if (category) { sql += ' AND category = ?';    params.push(category); }
 
   sql += ' ORDER BY date DESC';
 
@@ -44,10 +45,19 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/transactions
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { type, amount, date, description, source } = req.body;
-  // Default category to 'Other' — Gemini auto-categorization wired in Step 4
-  const category = req.body.category || 'Other';
+  let { category } = req.body;
+
+  // Savings type always gets 'Savings', regardless of what was sent
+  if (type === 'savings') {
+    category = 'Savings';
+  }
+  // Auto-categorize with Gemini if category is absent or empty
+  else if (!category) {
+    category = await categorizeTransaction({ description, amount, type });
+  }
+  // User provided a category — keep it (validateFields will reject if invalid)
 
   const errors = validateFields({ type, amount, date, category });
   if (errors.length) return res.status(400).json({ error: errors.join('; ') });
@@ -68,7 +78,6 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Transaction not found' });
 
-  // Merge incoming fields over existing values
   const type        = req.body.type        ?? existing.type;
   const amount      = req.body.amount      ?? existing.amount;
   const date        = req.body.date        ?? existing.date;
@@ -82,7 +91,6 @@ router.put('/:id', (req, res) => {
     `UPDATE transactions SET type=?, category=?, amount=?, date=?, description=? WHERE id=?`
   ).run(type, category, amount, date, description, existing.id);
 
-  // Invalidate both old month and new month (handles date changes)
   invalidateInsightsCache(existing.date);
   if (date !== existing.date) invalidateInsightsCache(date);
 

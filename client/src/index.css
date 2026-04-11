@@ -10,4 +10,19 @@
     @apply bg-neutral-950 text-neutral-100 font-sans antialiased;
     margin: 0;
   }
+
+  /* Hide number input spinners */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+
+  /* Dark native date picker */
+  input[type=date] {
+    color-scheme: dark;
+  }
 }

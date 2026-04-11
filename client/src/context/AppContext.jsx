@@ -9,11 +9,46 @@ function getCurrentMonth() {
 }
 
 export function AppProvider({ children }) {
+  // ── Data ──────────────────────────────────────────────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
-  const [transactions, setTransactions] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [transactions,  setTransactions]  = useState([]);
+  const [summary,       setSummary]       = useState(null);
+  const [loading,       setLoading]       = useState(true);
 
+  // ── Modal state ───────────────────────────────────────────────────────────
+  const [transactionModalOpen, setTransactionModalOpen] = useState(false);
+  const [editTransaction,      setEditTransaction]      = useState(null);
+  const [transactionToDelete,  setTransactionToDelete]  = useState(null);
+
+  // ── Toast state ───────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback((message) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  }, []);
+
+  // ── Modal helpers ─────────────────────────────────────────────────────────
+  const openAddModal = useCallback(() => {
+    setEditTransaction(null);
+    setTransactionModalOpen(true);
+  }, []);
+
+  const openEditModal = useCallback((tx) => {
+    setEditTransaction(tx);
+    setTransactionModalOpen(true);
+  }, []);
+
+  const closeTransactionModal = useCallback(() => {
+    setTransactionModalOpen(false);
+    setEditTransaction(null);
+  }, []);
+
+  const openDeleteModal  = useCallback((tx) => setTransactionToDelete(tx), []);
+  const closeDeleteModal = useCallback(() => setTransactionToDelete(null), []);
+
+  // ── Fetching ──────────────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
     try {
       const data = await api.getTransactions();
@@ -34,21 +69,26 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchTransactions(), fetchSummary()]).finally(() =>
-      setLoading(false)
-    );
+    Promise.all([fetchTransactions(), fetchSummary()]).finally(() => setLoading(false));
   }, [fetchTransactions, fetchSummary]);
 
-  // Call after any mutation to keep state fresh
   const refetch = useCallback(
     () => Promise.all([fetchTransactions(), fetchSummary()]),
     [fetchTransactions, fetchSummary]
   );
 
   return (
-    <AppContext.Provider
-      value={{ selectedMonth, setSelectedMonth, transactions, summary, loading, refetch }}
-    >
+    <AppContext.Provider value={{
+      // data
+      selectedMonth, setSelectedMonth,
+      transactions, summary, loading, refetch,
+      // modals
+      transactionModalOpen, editTransaction, transactionToDelete,
+      openAddModal, openEditModal, closeTransactionModal,
+      openDeleteModal, closeDeleteModal,
+      // toasts
+      toasts, addToast,
+    }}>
       {children}
     </AppContext.Provider>
   );
