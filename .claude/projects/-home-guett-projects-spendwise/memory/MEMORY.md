@@ -1,2 +1,0 @@
-- [Ishak - student developer](user_ishak.md) — 2nd-year AI & CS student, first portfolio project, strict spec adherence
-- [Spec clarifications](project_spec_clarifications.md) — 7 authoritative amendments: savings semantics, sign convention, PDF fallback, planner, goal deletion, cache invalidation, no pagination

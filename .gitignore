@@ -8,3 +8,7 @@ node_modules
 *.db
 *.sqlite
 server/db/*.sqlite
+
+.claude/
+
+.claude/
