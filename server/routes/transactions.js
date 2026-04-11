@@ -49,15 +49,27 @@ router.post('/', async (req, res) => {
   const { type, amount, date, description, source } = req.body;
   let { category } = req.body;
 
+  // Validate type up front — missing/invalid type is a 400, never a crash
+  if (!type || !VALID_TYPES.includes(type)) {
+    return res.status(400).json({ error: `type is required and must be one of: ${VALID_TYPES.join(', ')}` });
+  }
+
   // Savings type always gets 'Savings', regardless of what was sent
   if (type === 'savings') {
     category = 'Savings';
   }
   // Auto-categorize with Gemini if category is absent or empty
   else if (!category) {
-    category = await categorizeTransaction({ description, amount, type });
+    try {
+      category = await categorizeTransaction({ description, amount, type });
+    } catch (err) {
+      console.error('[POST /transactions] categorize threw unexpectedly:', err.message);
+    }
+    // Guarantee a valid category even if the LLM call produced nothing usable
+    if (!category || !VALID_CATEGORIES.includes(category)) {
+      category = 'Other';
+    }
   }
-  // User provided a category — keep it (validateFields will reject if invalid)
 
   const errors = validateFields({ type, amount, date, category });
   if (errors.length) return res.status(400).json({ error: errors.join('; ') });

@@ -12,3 +12,4 @@ server/db/*.sqlite
 .claude/
 
 .claude/
+server/db/*.sqlite-*
