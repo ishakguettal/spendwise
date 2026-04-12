@@ -98,7 +98,11 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     parsedTransactions = await parseStatement(text);
   } catch (err) {
     db.prepare('DELETE FROM statements WHERE id = ?').run(statementId);
-    console.error('[statements/upload] parseStatement failed:', err.message);
+    const kind = err.message.includes('timeout') ? 'timeout'
+      : err.message.includes('parse') ? 'parse error'
+      : err.message.includes('valid') ? 'validation error'
+      : 'unknown error';
+    console.error(`[statements/upload] Prompt 1 (parseStatement) failed — ${kind}:`, err.message);
     return res.status(422).json({
       error: 'Could not extract transactions from the text. Try a cleaner paste.',
       fallback: 'paste_text',
@@ -133,7 +137,10 @@ router.post('/upload', conditionalUpload, async (req, res) => {
       .run(JSON.stringify(autopsy), statementId);
   } catch (err) {
     // Non-fatal — transactions are already saved; autopsy is a bonus
-    console.error('[statements/upload] autopsyStatement failed:', err.message);
+    const kind = err.message.includes('timeout') ? 'timeout'
+      : err.message.includes('parse') ? 'parse error'
+      : 'unknown error';
+    console.error(`[statements/upload] Prompt 2 (autopsyStatement) failed — ${kind}:`, err.message);
   }
 
   res.status(201).json({ transactions: insertedTransactions, autopsy, cached: false });

@@ -1,6 +1,8 @@
 import { getModel } from '../llm/gemini.js';
 
-const systemInstruction = `You are a personal finance analyst. Analyze bank statement data and return a concise financial health report.
+const systemInstruction = `Respond with ONLY a JSON object. No prose, no markdown, no code fences, no preamble.
+
+You are a personal finance analyst. Analyze bank statement data and return a concise financial health report.
 
 Return a JSON object with exactly these fields:
 - "summary": 2-3 sentence plain-English overview of the person's finances
@@ -9,15 +11,15 @@ Return a JSON object with exactly these fields:
 - "anomalies": array of up to 3 short strings describing unusual transactions or irregular patterns (e.g. "Large one-time charge of AED 3,200 at an unfamiliar merchant")
 - "wasteful": array of up to 3 short strings identifying potentially wasteful spending patterns (e.g. "Multiple food delivery charges totaling AED 650 this month")
 
-If there is nothing notable for anomalies or wasteful, return empty arrays.
-Return ONLY the JSON object — no markdown, no explanation.`;
+If there is nothing notable for anomalies or wasteful, return empty arrays.`;
 
 const model = getModel(systemInstruction);
 
-function withTimeout(promise, ms = 15000) {
+// Free-tier gemini-flash-latest is slower; 45 s gives headroom for autopsy analysis
+function withTimeout(promise, ms = 45000) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('LLM timeout after 15s')), ms)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`LLM timeout after ${ms / 1000}s`)), ms)),
   ]);
 }
 
@@ -54,11 +56,21 @@ export async function autopsyStatement(text, transactions) {
 
   const userMsg = `Extracted transactions:\n${txLines}\n\nStatement text (first 2000 chars):\n${text.slice(0, 2000)}`;
 
+  let rawText;
   try {
     const result = await withTimeout(model.generateContent(userMsg));
-    const raw = cleanAndParse(result.response.text());
-    return sanitize(raw);
+    rawText = result.response.text();
   } catch (err) {
+    const kind = err.message.includes('timeout') ? 'timeout' : 'network/API error';
+    console.error(`[autopsyStatement] ${kind}:`, err.message);
     throw new Error(`Autopsy LLM call failed: ${err.message}`);
+  }
+
+  try {
+    const raw = cleanAndParse(rawText);
+    return sanitize(raw);
+  } catch (parseErr) {
+    console.error('[autopsyStatement] parse error:', parseErr.message, '— Raw[:200]:', rawText.slice(0, 200));
+    throw new Error(`Autopsy parse failed: ${parseErr.message}`);
   }
 }

@@ -13,3 +13,5 @@ server/db/*.sqlite
 
 .claude/
 server/db/*.sqlite-*
+CLAUDE.md
+.claude/
