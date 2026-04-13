@@ -21,6 +21,12 @@ export function AppProvider({ children }) {
   // ── Global existence flag (true once any tx exists anywhere) ─────────────
   const [hasAnyTransactions, setHasAnyTransactions] = useState(null); // null = not yet loaded
 
+  // ── Goals ─────────────────────────────────────────────────────────────────
+  const [goals, setGoals] = useState([]);
+
+  // ── Savings ───────────────────────────────────────────────────────────────
+  const [savings, setSavings] = useState(null);
+
   // ── Insights state ────────────────────────────────────────────────────────
   const [insights,        setInsights]        = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -81,6 +87,24 @@ export function AppProvider({ children }) {
     }
   }, [selectedMonth]);
 
+  const fetchGoals = useCallback(async () => {
+    try {
+      const data = await api.getGoals();
+      setGoals(data);
+    } catch {
+      setGoals([]);
+    }
+  }, []);
+
+  const fetchSavings = useCallback(async () => {
+    try {
+      const data = await api.getSavings();
+      setSavings(data);
+    } catch {
+      setSavings(null);
+    }
+  }, []);
+
   const fetchInsights = useCallback(async () => {
     setInsightsLoading(true);
     try {
@@ -98,11 +122,13 @@ export function AppProvider({ children }) {
     Promise.all([
       fetchTransactions(),
       fetchSummary(),
+      fetchGoals(),
+      fetchSavings(),
       api.hasAnyTransactions()
         .then(({ exists }) => setHasAnyTransactions(exists))
         .catch(() => setHasAnyTransactions(false)),
     ]).finally(() => setLoading(false));
-  }, [fetchTransactions, fetchSummary]);
+  }, [fetchTransactions, fetchSummary, fetchGoals, fetchSavings]);
 
   // Insights run independently so they don't block the main loading spinner
   useEffect(() => {
@@ -112,11 +138,13 @@ export function AppProvider({ children }) {
   const refetch = useCallback(() => Promise.all([
     fetchTransactions(),
     fetchSummary(),
+    fetchGoals(),
+    fetchSavings(),
     fetchInsights(),
     api.hasAnyTransactions()
       .then(({ exists }) => setHasAnyTransactions(exists))
       .catch(() => {}),
-  ]), [fetchTransactions, fetchSummary, fetchInsights]);
+  ]), [fetchTransactions, fetchSummary, fetchGoals, fetchSavings, fetchInsights]);
 
   return (
     <AppContext.Provider value={{
@@ -125,6 +153,10 @@ export function AppProvider({ children }) {
       transactions, summary, loading, refetch,
       // global state
       hasAnyTransactions,
+      // goals
+      goals, fetchGoals,
+      // savings
+      savings, fetchSavings,
       // autopsy
       autopsy, setAutopsy,
       // insights

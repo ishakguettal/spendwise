@@ -96,8 +96,9 @@ export default function TransactionModal({ open, transaction, onClose }) {
         await api.createTransaction(payload);
         addToast('Transaction added');
       }
-      await refetch();
+      // Close immediately — don't block on refetch (insights can take up to 45s)
       onClose();
+      refetch();
     } catch (err) {
       setSubmitError(err.message);
     } finally {

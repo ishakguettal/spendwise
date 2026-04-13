@@ -55,4 +55,14 @@ export const api = {
 
   getInsights: (month) => request(`/api/insights?month=${month}`),
   hasAnyTransactions: () => request('/api/transactions/any'),
+
+  getGoals:      ()         => request('/api/goals'),
+  createGoal:    (data)     => request('/api/goals',       { method: 'POST',   body: JSON.stringify(data) }),
+  updateGoal:    (id, data) => request(`/api/goals/${id}`, { method: 'PUT',    body: JSON.stringify(data) }),
+  deleteGoal:    (id)       => request(`/api/goals/${id}`, { method: 'DELETE' }),
+  generatePlan:  ()         => request('/api/goals/plan',  { method: 'POST' }),
+
+  getSavings:  ()                       => request('/api/savings'),
+  allocate:    (goal_id, amount)        => request('/api/savings/allocate',   { method: 'POST', body: JSON.stringify({ goal_id, amount }) }),
+  reallocate:  (from_goal_id, to_goal_id, amount) => request('/api/savings/reallocate', { method: 'POST', body: JSON.stringify({ from_goal_id, to_goal_id, amount }) }),
 };

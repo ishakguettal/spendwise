@@ -6,6 +6,8 @@ import transactionsRouter from './routes/transactions.js';
 import summaryRouter from './routes/summary.js';
 import statementsRouter from './routes/statements.js';
 import insightsRouter from './routes/insights.js';
+import goalsRouter   from './routes/goals.js';
+import savingsRouter from './routes/savings.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +22,8 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/summary', summaryRouter);
 app.use('/api/statements', statementsRouter);
 app.use('/api/insights', insightsRouter);
+app.use('/api/goals',   goalsRouter);
+app.use('/api/savings', savingsRouter);
 
 app.listen(PORT, () => {
   console.log(`Spendwise server running on http://localhost:${PORT}`);

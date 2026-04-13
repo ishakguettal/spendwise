@@ -56,6 +56,13 @@ db.exec(`
     content_json TEXT    NOT NULL,
     generated_at TEXT    NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS plans_cache (
+    id           INTEGER PRIMARY KEY,
+    cache_key    TEXT    NOT NULL UNIQUE,
+    content_json TEXT    NOT NULL,
+    generated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 export default db;

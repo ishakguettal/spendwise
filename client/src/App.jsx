@@ -5,6 +5,8 @@ import TopBar from './components/TopBar';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
 import InsightsSection from './components/InsightsSection';
+import SavingsSection from './components/SavingsSection';
+import GoalsSection from './components/GoalsSection';
 import TransactionsSection from './components/TransactionsSection';
 import EmptyState from './components/EmptyState';
 import TransactionModal from './components/TransactionModal';
@@ -51,6 +53,8 @@ export default function App() {
             <section id="stats"><StatsCards /></section>
             <section id="charts"><ChartsSection /></section>
             <section id="insights"><InsightsSection /></section>
+            <section id="savings"><SavingsSection /></section>
+            <section id="goals"><GoalsSection /></section>
             <section id="transactions"><TransactionsSection /></section>
           </main>
         )}
