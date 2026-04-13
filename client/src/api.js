@@ -52,4 +52,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+
+  getInsights: (month) => request(`/api/insights?month=${month}`),
+  hasAnyTransactions: () => request('/api/transactions/any'),
 };

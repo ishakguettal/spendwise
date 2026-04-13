@@ -37,8 +37,13 @@ function IconDelete() {
   );
 }
 
+function formatMonthLabel(yyyyMm) {
+  const [y, m] = yyyyMm.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
+
 export default function TransactionsSection() {
-  const { transactions, openEditModal, openDeleteModal } = useApp();
+  const { transactions, selectedMonth, openEditModal, openDeleteModal } = useApp();
   const [filterCategory, setFilterCategory] = useState('');
   const [filterType,     setFilterType]     = useState('');
   const [search,         setSearch]         = useState('');
@@ -82,6 +87,13 @@ export default function TransactionsSection() {
         </div>
       </div>
 
+      {/* Per-month empty note */}
+      {transactions.length === 0 && (
+        <p className="mb-4 text-sm text-neutral-500">
+          No transactions for {formatMonthLabel(selectedMonth)}.
+        </p>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -100,7 +112,7 @@ export default function TransactionsSection() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-12 text-center text-neutral-600 text-sm">
-                  No transactions match your filters
+                  {transactions.length === 0 ? '' : 'No transactions match your filters'}
                 </td>
               </tr>
             ) : filtered.map((t) => (

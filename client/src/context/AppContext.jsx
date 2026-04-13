@@ -18,6 +18,13 @@ export function AppProvider({ children }) {
   // ── Autopsy state (session-only) ──────────────────────────────────────────
   const [autopsy, setAutopsy] = useState(null);
 
+  // ── Global existence flag (true once any tx exists anywhere) ─────────────
+  const [hasAnyTransactions, setHasAnyTransactions] = useState(null); // null = not yet loaded
+
+  // ── Insights state ────────────────────────────────────────────────────────
+  const [insights,        setInsights]        = useState(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+
   // ── Modal state ───────────────────────────────────────────────────────────
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [editTransaction,      setEditTransaction]      = useState(null);
@@ -58,12 +65,12 @@ export function AppProvider({ children }) {
   // ── Fetching ──────────────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
     try {
-      const data = await api.getTransactions();
+      const data = await api.getTransactions({ month: selectedMonth });
       setTransactions(data);
     } catch {
       setTransactions([]);
     }
-  }, []);
+  }, [selectedMonth]);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -74,23 +81,54 @@ export function AppProvider({ children }) {
     }
   }, [selectedMonth]);
 
+  const fetchInsights = useCallback(async () => {
+    setInsightsLoading(true);
+    try {
+      const data = await api.getInsights(selectedMonth);
+      setInsights(data);
+    } catch {
+      setInsights(null);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [selectedMonth]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchTransactions(), fetchSummary()]).finally(() => setLoading(false));
+    Promise.all([
+      fetchTransactions(),
+      fetchSummary(),
+      api.hasAnyTransactions()
+        .then(({ exists }) => setHasAnyTransactions(exists))
+        .catch(() => setHasAnyTransactions(false)),
+    ]).finally(() => setLoading(false));
   }, [fetchTransactions, fetchSummary]);
 
-  const refetch = useCallback(
-    () => Promise.all([fetchTransactions(), fetchSummary()]),
-    [fetchTransactions, fetchSummary]
-  );
+  // Insights run independently so they don't block the main loading spinner
+  useEffect(() => {
+    fetchInsights();
+  }, [fetchInsights]);
+
+  const refetch = useCallback(() => Promise.all([
+    fetchTransactions(),
+    fetchSummary(),
+    fetchInsights(),
+    api.hasAnyTransactions()
+      .then(({ exists }) => setHasAnyTransactions(exists))
+      .catch(() => {}),
+  ]), [fetchTransactions, fetchSummary, fetchInsights]);
 
   return (
     <AppContext.Provider value={{
       // data
       selectedMonth, setSelectedMonth,
       transactions, summary, loading, refetch,
+      // global state
+      hasAnyTransactions,
       // autopsy
       autopsy, setAutopsy,
+      // insights
+      insights, insightsLoading,
       // modals
       transactionModalOpen, editTransaction, transactionToDelete,
       openAddModal, openEditModal, closeTransactionModal,

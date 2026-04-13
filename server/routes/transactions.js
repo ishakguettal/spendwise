@@ -28,6 +28,12 @@ function validateFields({ type, amount, date, category }) {
   return errors;
 }
 
+// GET /api/transactions/any — lightweight global existence check (no month filter)
+router.get('/any', (req, res) => {
+  const row = db.prepare('SELECT 1 FROM transactions LIMIT 1').get();
+  res.json({ exists: !!row });
+});
+
 // GET /api/transactions?month=YYYY-MM&type=&category=
 router.get('/', (req, res) => {
   const { month, type, category } = req.query;

@@ -14,14 +14,16 @@ import ToastContainer from './components/ToastContainer';
 
 export default function App() {
   const {
-    transactions, loading,
+    hasAnyTransactions, loading,
     transactionModalOpen, editTransaction, closeTransactionModal,
     transactionToDelete, closeDeleteModal,
     uploadModalOpen, closeUploadModal,
     refetch, addToast, toasts,
   } = useApp();
 
-  const noData = !loading && transactions.length === 0;
+  // Only show the full-page empty state on the very first load when the entire
+  // database has zero transactions. Per-month empty states are handled inline.
+  const noData = !loading && hasAnyTransactions === false;
 
   async function handleDelete() {
     try {
