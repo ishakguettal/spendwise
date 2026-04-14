@@ -1,6 +1,6 @@
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+  BarChart, Bar, XAxis,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 
@@ -51,15 +51,15 @@ export default function ChartsSection() {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Pie chart */}
-      <div className="rounded-2xl border border-neutral-800 p-6">
-        <p className="text-sm font-medium text-neutral-400 mb-4">Spending by Category</p>
+      <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
+        <p className="text-sm font-medium text-neutral-400 mb-3">Spending by Category</p>
         {pieData.length === 0 ? (
-          <div className="flex items-center justify-center h-[200px] text-neutral-600 text-sm">
+          <div className="flex items-center justify-center h-[160px] text-neutral-600 text-sm">
             No expense data this month
           </div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={160}>
               <PieChart>
                 <Pie
                   data={pieData}
@@ -79,7 +79,7 @@ export default function ChartsSection() {
               </PieChart>
             </ResponsiveContainer>
             {/* Legend */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
               {pieData.map((entry, i) => (
                 <div key={entry.category} className="flex items-center gap-1.5 text-xs text-neutral-400">
                   <div
@@ -95,30 +95,17 @@ export default function ChartsSection() {
       </div>
 
       {/* Bar chart */}
-      <div className="rounded-2xl border border-neutral-800 p-6">
-        <p className="text-sm font-medium text-neutral-400 mb-4">6-Month Trend</p>
-        <ResponsiveContainer width="100%" height={200}>
+      <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
+        <p className="text-sm font-medium text-neutral-400 mb-3">6-Month Trend</p>
+        <ResponsiveContainer width="100%" height={160}>
           <BarChart data={barData} barGap={2} barCategoryGap="30%">
-            <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
             <XAxis
               dataKey="month"
               tick={{ fill: '#737373', fontSize: 12 }}
               axisLine={false}
               tickLine={false}
             />
-            <YAxis
-              tick={{ fill: '#737373', fontSize: 12 }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : v}
-              width={36}
-            />
             <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <Legend
-              wrapperStyle={{ fontSize: '12px', color: '#737373', paddingTop: '12px' }}
-              iconType="circle"
-              iconSize={8}
-            />
             <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
             <Bar dataKey="Spent"  fill="#ef4444" radius={[3, 3, 0, 0]} />
           </BarChart>

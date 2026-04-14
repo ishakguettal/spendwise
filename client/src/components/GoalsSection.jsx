@@ -258,20 +258,20 @@ function GoalCard({ goal, goalPlan, unallocated, onEdit, onDelete, onAllocate })
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-neutral-800/40 transition-colors duration-150"
+        className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-neutral-800/40 transition-colors duration-150"
       >
         <IconChevron down={expanded} />
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2.5">
-            <span className="text-lg font-medium text-neutral-100 truncate">{goal.name}</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-medium text-neutral-100 truncate">{goal.name}</span>
             <span className={`shrink-0 text-xs px-2 py-0.5 rounded-md capitalize ${PRIORITY_BADGE[goal.priority] ?? PRIORITY_BADGE.low}`}>
               {goal.priority}
             </span>
             {goalPlan && <FeasibilityBadge f={goalPlan.feasibility} />}
           </div>
 
-          <div className="h-2 rounded-full bg-neutral-800 overflow-hidden mb-2">
+          <div className="h-1.5 rounded-full bg-neutral-800 overflow-hidden mb-1.5">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{ width: `${barPct}%` }}
@@ -279,7 +279,7 @@ function GoalCard({ goal, goalPlan, unallocated, onEdit, onDelete, onAllocate })
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs tabular-nums text-neutral-500">
               AED {fmt(goal.allocated)} / {fmt(goal.target_amount)} allocated
               <span className="ml-1.5 text-neutral-600">({goal.progress_pct}%)</span>
             </span>
@@ -450,7 +450,7 @@ export default function GoalsSection() {
       <div className="space-y-4">
         {/* Section header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium text-neutral-100">Goals</h2>
+          <h2 className="text-2xl font-semibold text-neutral-100">Goals</h2>
           <button
             onClick={openNew}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-neutral-950 text-sm font-medium hover:bg-emerald-400 transition-colors duration-150"

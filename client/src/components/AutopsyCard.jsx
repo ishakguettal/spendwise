@@ -54,7 +54,7 @@ export default function AutopsyCard({ autopsy }) {
     : 0;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-6">
+    <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-6 space-y-6 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-neutral-100">Statement Autopsy</h2>

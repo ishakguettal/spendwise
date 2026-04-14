@@ -19,9 +19,9 @@ function fmt(n) {
 
 function StatCard({ label, value, valueClass = 'text-neutral-100' }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 px-5 py-4">
-      <p className="text-xs text-neutral-500 mb-1.5">{label}</p>
-      <p className={`text-xl font-semibold tabular-nums ${valueClass}`}>AED {value}</p>
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+      <p className="text-xs text-neutral-500 mb-1">{label}</p>
+      <p className={`text-lg font-medium tabular-nums ${valueClass}`}>AED {value}</p>
     </div>
   );
 }
@@ -44,7 +44,7 @@ function AllocationBar({ savings }) {
   return (
     <div className="space-y-3">
       {/* Bar */}
-      <div className="flex h-3 rounded-full overflow-hidden gap-px bg-neutral-800">
+      <div className="flex h-1.5 rounded-full overflow-hidden gap-px bg-neutral-800">
         {allocated_goals.map((g, i) => (
           <div
             key={g.goal_id}
@@ -279,7 +279,7 @@ export default function SavingsSection() {
       <div className="space-y-4">
         {/* Section header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium text-neutral-100">Savings</h2>
+          <h2 className="text-2xl font-semibold text-neutral-100">Savings</h2>
           <button
             onClick={() => setAllocateOpen(true)}
             disabled={unallocated <= 0}
@@ -290,7 +290,7 @@ export default function SavingsSection() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <StatCard label="Total Saved"  value={fmt(totalBalance)} />
           <StatCard label="Allocated"    value={fmt(totalAllocated)} />
           <StatCard
@@ -301,8 +301,8 @@ export default function SavingsSection() {
         </div>
 
         {/* Stacked bar */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-xs uppercase tracking-wide text-neutral-500 mb-4">Allocation Breakdown</p>
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <p className="text-xs uppercase tracking-wide text-neutral-500 mb-3">Allocation Breakdown</p>
           {savings ? (
             <AllocationBar savings={savings} />
           ) : (

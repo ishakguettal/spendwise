@@ -6,9 +6,9 @@ function fmt(n) {
 
 function Card({ label, value, colorClass }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 p-6">
-      <p className="text-sm text-neutral-500 mb-2">{label}</p>
-      <p className={`text-2xl font-semibold tabular-nums ${colorClass}`}>{value}</p>
+    <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
+      <p className="text-xs text-neutral-500 mb-1">{label}</p>
+      <p className={`text-xl font-medium tabular-nums ${colorClass}`}>{value}</p>
     </div>
   );
 }

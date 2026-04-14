@@ -5,8 +5,7 @@ import TopBar from './components/TopBar';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
 import InsightsSection from './components/InsightsSection';
-import SavingsSection from './components/SavingsSection';
-import GoalsSection from './components/GoalsSection';
+import SavingsGoalsSection from './components/SavingsGoalsSection';
 import TransactionsSection from './components/TransactionsSection';
 import EmptyState from './components/EmptyState';
 import TransactionModal from './components/TransactionModal';
@@ -42,20 +41,39 @@ export default function App() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans">
       <Sidebar />
-      <div className="pl-[60px]">
+      <div className="pl-[200px]">
         <TopBar />
         {noData ? (
           <div className="flex items-center justify-center min-h-[calc(100vh-56px)]">
             <EmptyState />
           </div>
         ) : (
-          <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-            <section id="stats"><StatsCards /></section>
-            <section id="charts"><ChartsSection /></section>
-            <section id="insights"><InsightsSection /></section>
-            <section id="savings"><SavingsSection /></section>
-            <section id="goals"><GoalsSection /></section>
-            <section id="transactions"><TransactionsSection /></section>
+          <main className="max-w-[1700px] mx-auto px-8 py-8 space-y-8">
+            <section id="stats" className="scroll-mt-20">
+              <div className="mb-3">
+                <h2 className="text-2xl font-semibold text-neutral-100">Overview</h2>
+              </div>
+              <StatsCards />
+            </section>
+
+            <section id="charts" className="border-t border-neutral-800/60 pt-6 scroll-mt-20">
+              <div className="mb-3">
+                <h2 className="text-2xl font-semibold text-neutral-100">Spending Breakdown</h2>
+              </div>
+              <ChartsSection />
+            </section>
+
+            <section id="insights" className="border-t border-neutral-800/60 pt-6 scroll-mt-20">
+              <InsightsSection />
+            </section>
+
+            <section id="savings-goals" className="border-t border-neutral-800/60 pt-6 scroll-mt-20">
+              <SavingsGoalsSection />
+            </section>
+
+            <section id="transactions" className="border-t border-neutral-800/60 pt-6 scroll-mt-20">
+              <TransactionsSection />
+            </section>
           </main>
         )}
       </div>
