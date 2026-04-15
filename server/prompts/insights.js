@@ -2,12 +2,15 @@ import { getModel } from '../llm/gemini.js';
 
 const systemInstruction = `Respond with ONLY a JSON object. No prose, no markdown, no code fences, no preamble.
 
-You are a personal finance analyst. Analyze transaction data across multiple months and return 3-5 concise, actionable insights.
+You are a personal finance analyst. You receive three inputs:
+1. monthly_summary — pre-computed totals and month-over-month percentage deltas for up to 3 months
+2. baselines — the user's 3-month average spending per top category and total expenses
+3. raw_transactions — detailed transaction list for additional pattern discovery
 
 Return a JSON object with exactly this field:
 - "observations": array of 3-5 objects, each with:
   - "title": string — short label (5-8 words max)
-  - "detail": string — 1-2 sentences with specific amounts, category names, or transaction counts; compare to prior months when data is available
+  - "detail": string — 1-2 sentences with specific amounts, category names, or percentages; cite delta values and baseline comparisons where relevant
   - "trend": "up" | "down" | "flat" — raw direction of the metric (use "up" when a value increased, "down" when it decreased, "flat" when stable)
   - "sentiment": "positive" | "negative" | "neutral" — whether this observation is GOOD or BAD for the user's financial health
 
@@ -22,20 +25,28 @@ Sentiment rules — apply these exactly:
   - Savings rate decreased → sentiment: negative
   - Pure observation with no clear good/bad direction → sentiment: neutral
 
-Sentiment examples:
-  - "Salary increased 10%" → trend: up, sentiment: positive (more income is good)
-  - "Dining expenses dropped 30%" → trend: down, sentiment: positive (less spending is good)
-  - "Transport costs rose 25%" → trend: up, sentiment: negative (more spending is bad)
-  - "Savings rate fell from 20% to 12%" → trend: down, sentiment: negative (saving less is bad)
-  - "You made 47 transactions this month" → trend: flat, sentiment: neutral (pure fact)
+Rules for using monthly_summary (primary source for trend observations):
+  - Use the pre-computed deltas as the primary basis — do not re-derive percentages from raw transactions
+  - Cite specific delta percentages in observations ("Subscriptions up 27% vs March", "Transport down 12% from last month")
+  - When 3 consecutive months show a consistent direction in a category, call out the streak ("Food spending up 3 months in a row")
+  - "new this month" means the category had zero spend the prior month — note this as a new expense appearing
 
-Rules:
-- Every observation must reference specific numbers from the data (e.g. "AED 1,200", "3 transactions", "up 18%")
-- Compare current month to prior months whenever at least 2 months of data are present
-- Cover varied aspects: total spending, top categories, savings behavior, income patterns, unusual spikes
-- Do not invent numbers; only use figures present in the provided data
-- If there is insufficient data for comparisons, still extract observations about the current month alone
-- Return at least 1 observation even for sparse data`;
+Rules for using baselines (personalized historical averages):
+  - Compare the current month's per-category spend to the user's avg_monthly baseline
+  - Only surface the comparison when the deviation is 10% or more — smaller deviations are not noteworthy
+  - Frame it personally: "You spent 23% more on Food than your 3-month average of AED X"
+  - If current month is within 10% of baseline, describe spending as "in line with your typical pattern"
+  - Also compare total expenses to avg_monthly_total_expenses when useful
+
+Rules for using raw_transactions (supplementary detail):
+  - Use raw transactions for patterns the deltas don't capture: unusual one-off merchants, high transaction frequency in a category, suspicious charges
+  - Do not re-compute totals from raw — always use the pre-computed values in monthly_summary
+
+General rules:
+  - Every observation must reference specific numbers (e.g. "AED 1,200", "up 18%", "3 months in a row")
+  - Cover varied aspects: total spending, top categories, savings behavior, income patterns, unusual spikes
+  - Do not invent numbers; only use figures present in the provided data
+  - Return at least 1 observation even for sparse data`;
 
 const model = getModel(systemInstruction);
 
@@ -81,10 +92,12 @@ function sanitize(raw) {
 /**
  * Generate monthly insights from multi-month transaction data.
  * @param {Array<{month: string, transactions: Array}>} monthlyData - oldest first
- * @returns {Promise<{observations: Array<{title, detail, trend}>}>}
+ * @param {Array} monthly_summary - pre-computed totals + deltas per month
+ * @param {object} baselines - 3-month category averages
+ * @returns {Promise<{observations: Array<{title, detail, trend, sentiment}>}>}
  */
-export async function generateInsights(monthlyData) {
-  const lines = monthlyData
+export async function generateInsights(monthlyData, monthly_summary, baselines) {
+  const rawLines = monthlyData
     .map(({ month, transactions }) => {
       const txLines = transactions
         .slice(0, 40)
@@ -97,7 +110,16 @@ export async function generateInsights(monthlyData) {
     })
     .join('\n\n');
 
-  const userMsg = `Monthly transaction data (oldest to newest):\n\n${lines}`;
+  const userMsg = [
+    '## monthly_summary (totals + month-over-month deltas)',
+    JSON.stringify(monthly_summary, null, 2),
+    '',
+    '## baselines (3-month averages)',
+    JSON.stringify(baselines, null, 2),
+    '',
+    '## raw_transactions (oldest to newest)',
+    rawLines,
+  ].join('\n');
 
   let rawText;
   try {

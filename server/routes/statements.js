@@ -7,6 +7,7 @@ import { VALID_CATEGORIES } from './transactions.js';
 import { invalidateInsightsCache } from '../helpers/invalidateInsightsCache.js';
 import { parseStatement } from '../prompts/parseStatement.js';
 import { autopsyStatement } from '../prompts/autopsy.js';
+import { sanitizeStatementText } from '../lib/sanitizeStatementText.js';
 
 const router = Router();
 
@@ -67,6 +68,12 @@ router.post('/upload', conditionalUpload, async (req, res) => {
         fallback: 'paste_text',
       });
     }
+
+    // Sanitize before anything leaves this server
+    { const { cleaned_text, ...report } = sanitizeStatementText(text);
+      console.log('[sanitize] PDF:', report);
+      text = cleaned_text; }
+
   } else if (req.body?.text) {
     // ── Paste text path ──────────────────────────────────────────────────────
     text = req.body.text;
@@ -82,6 +89,11 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     if (text.trim().length < 50) {
       return res.status(400).json({ error: 'Text is too short to process.' });
     }
+
+    // Sanitize before anything leaves this server
+    { const { cleaned_text, ...report } = sanitizeStatementText(text);
+      console.log('[sanitize] paste:', report);
+      text = cleaned_text; }
   } else {
     return res.status(400).json({ error: 'Provide a PDF file or a text body.' });
   }

@@ -9,11 +9,6 @@ import insightsRouter from './routes/insights.js';
 import goalsRouter   from './routes/goals.js';
 import savingsRouter from './routes/savings.js';
 
-// One-shot flush: clear cached autopsy + insights so they regenerate with updated UAE categorization prompts.
-// REMOVE BOTH LINES after the first successful server restart.
-db.prepare('DELETE FROM statements').run();
-db.prepare('DELETE FROM insights_cache').run();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';

@@ -23,6 +23,84 @@ function getPreviousMonths(endMonth, count) {
   return months;
 }
 
+function round2(n) { return Math.round(n * 100) / 100; }
+
+/** Compute totals for each month. */
+function computeMonthlySummary(monthlyData) {
+  return monthlyData.map(({ month, transactions }) => {
+    const income   = round2(transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+    const expenses = round2(transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    const savings  = round2(transactions.filter(t => t.category === 'Savings').reduce((s, t) => s + t.amount, 0));
+    const net_cash_flow = round2(income - expenses);
+
+    const by_category = {};
+    for (const tx of transactions) {
+      if (tx.type === 'expense') {
+        by_category[tx.category] = round2((by_category[tx.category] || 0) + tx.amount);
+      }
+    }
+
+    return { month, income, expenses, savings, net_cash_flow, by_category };
+  });
+}
+
+/** Format a percentage delta between two values as a signed string. */
+function pctDelta(cur, prv) {
+  if (prv === 0 && cur === 0) return null;
+  if (prv === 0) return 'new this month';
+  if (cur === 0) return 'dropped to zero';
+  const pct = ((cur - prv) / Math.abs(prv)) * 100;
+  return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+}
+
+/** Annotate each month with deltas vs the prior month. */
+function computeDeltas(summaries) {
+  return summaries.map((s, i) => {
+    if (i === 0) return { ...s, deltas: null };
+    const prev = summaries[i - 1];
+
+    const category_deltas = {};
+    const allCats = new Set([...Object.keys(s.by_category), ...Object.keys(prev.by_category)]);
+    for (const cat of allCats) {
+      const d = pctDelta(s.by_category[cat] || 0, prev.by_category[cat] || 0);
+      if (d !== null) category_deltas[cat] = d;
+    }
+
+    return {
+      ...s,
+      deltas: {
+        income:        pctDelta(s.income,        prev.income),
+        expenses:      pctDelta(s.expenses,      prev.expenses),
+        savings:       pctDelta(s.savings,       prev.savings),
+        net_cash_flow: pctDelta(s.net_cash_flow, prev.net_cash_flow),
+        by_category:   category_deltas,
+      },
+    };
+  });
+}
+
+/** 3-month averages per category (top 5 by avg spend) + total expenses average. */
+function computeBaselines(summaries) {
+  const allCats = new Set(summaries.flatMap(s => Object.keys(s.by_category)));
+
+  const avgByCategory = {};
+  for (const cat of allCats) {
+    const values = summaries.map(s => s.by_category[cat] || 0);
+    avgByCategory[cat] = round2(values.reduce((a, b) => a + b, 0) / values.length);
+  }
+
+  const top_categories = Object.entries(avgByCategory)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([category, avg_monthly]) => ({ category, avg_monthly }));
+
+  const avg_monthly_total_expenses = round2(
+    summaries.reduce((s, m) => s + m.expenses, 0) / summaries.length
+  );
+
+  return { top_categories, avg_monthly_total_expenses };
+}
+
 // GET /api/insights?month=YYYY-MM
 router.get('/', async (req, res) => {
   const { month } = req.query;
@@ -65,11 +143,16 @@ router.get('/', async (req, res) => {
     return res.json({ observations: [] });
   }
 
+  // ── Pre-compute structured context for the LLM ──────────────────────────────
+  const rawSummaries   = computeMonthlySummary(monthlyData);
+  const monthly_summary = computeDeltas(rawSummaries);
+  const baselines       = computeBaselines(rawSummaries);
+
   // ── LLM call with one retry on any failure ───────────────────────────────────
   let result;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      result = await generateInsights(monthlyData);
+      result = await generateInsights(monthlyData, monthly_summary, baselines);
       break;
     } catch (err) {
       console.error(`[GET /insights] attempt ${attempt} failed:`, err.message);
