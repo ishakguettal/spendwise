@@ -17,16 +17,20 @@ function ArrowDown({ cls }) {
 }
 
 // sentiment drives border color; trend drives arrow direction
+// Note: must use border-l-[color] (border-left-color) not border-[color] (border-color shorthand)
+// so the left color isn't clobbered by the all-sides border-neutral-700/80 class.
 const SENTIMENT = {
-  positive: { borderCls: 'border-l-4 border-emerald-500/60', iconCls: 'text-emerald-400' },
-  negative: { borderCls: 'border-l-4 border-red-400/60',     iconCls: 'text-red-400' },
-  neutral:  { borderCls: 'border-l-4 border-neutral-700',    iconCls: '' },
+  positive: { borderCls: 'border-l-2 border-l-emerald-500', iconCls: 'text-emerald-400' },
+  negative: { borderCls: 'border-l-2 border-l-red-400',     iconCls: 'text-red-400' },
+  neutral:  { borderCls: 'border-l-2 border-l-neutral-700', iconCls: '' },
 };
 
 function ObservationCard({ title, detail, trend, sentiment }) {
   const { borderCls, iconCls } = SENTIMENT[sentiment] ?? SENTIMENT.neutral;
   const showArrow = sentiment !== 'neutral' && trend !== 'flat';
   const Icon = trend === 'up' ? ArrowUp : ArrowDown;
+  // Debug: verify sentiment field is present in data
+  console.log('[ObservationCard] sentiment:', sentiment, '→ borderCls:', borderCls);
 
   return (
     <div className={`rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)] ${borderCls}`}>
@@ -41,7 +45,7 @@ function ObservationCard({ title, detail, trend, sentiment }) {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 border-l-4 border-l-neutral-800 p-4 animate-pulse shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
+    <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 border-l-2 border-l-neutral-700 p-4 animate-pulse shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
       <div className="flex items-start gap-2 mb-2">
         <div className="w-4 h-4 rounded bg-neutral-800 shrink-0 mt-0.5" />
         <div className="h-4 w-3/4 rounded bg-neutral-800" />

@@ -7,7 +7,7 @@ You are a personal finance analyst. Analyze bank statement data and return a con
 Return a JSON object with exactly these fields:
 - "summary": 2-3 sentence plain-English overview of the person's finances
 - "health_score": integer 0-100 representing overall financial health (consider savings rate, spending discipline, income stability, presence of wasteful spending)
-- "top_categories": array of up to 5 objects {category: string, amount: number} — highest-spend expense categories, in descending order
+- "top_categories": array of up to 5 objects {category: string, amount: number} — highest-spend expense categories, in descending order. IMPORTANT: any transactions with description matching "ATM Withdrawal", "Cash Withdrawal", "CL ATM", or similar cash-withdrawal patterns must be grouped into a single line item with category "Cash Withdrawals" (not "Other"). "Other" must only appear in top_categories if there are genuinely uncategorized non-cash merchants that don't fit any named category.
 - "anomalies": array of up to 3 short strings describing unusual transactions or irregular patterns (e.g. "Large one-time charge of AED 3,200 at an unfamiliar merchant")
 - "wasteful": array of up to 3 short strings identifying potentially wasteful spending patterns (e.g. "Multiple food delivery charges totaling AED 650 this month")
 

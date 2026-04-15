@@ -19,7 +19,24 @@ Rules:
 - Credits, deposits, salary payments, refunds → type "income", category "Income"
 - All other outflows → type "expense"
 - Skip balance rows, opening/closing balance lines, and summary totals
-- If year is missing from a date, infer from context clues in the statement`;
+- If year is missing from a date, infer from context clues in the statement
+
+UAE-specific merchant mappings — apply these exactly:
+- Tabby, Tamara, Postpay → Bills (BNPL installments)
+- Noon, NOON.COM, NOON ONE, Amazon, AliExpress → Shopping
+- Careem Food, Talabat, Deliveroo, Zomato → Food
+- Careem, Uber, Hala Taxi → Transport
+- Enoc, Adnoc, Emarat, ENOC SITE → Transport (fuel)
+- Lulu, Carrefour, Spinneys, Waitrose, Choithrams, Union Coop → Groceries
+- GymNation, Fitness First, Gold's Gym → Health
+- Salik, RTA, Smart Dubai Government, Smart Dubai Gov → Bills
+- Du, Etisalat → Bills
+- Any merchant containing Restaurant, Cafe, Kitchen, Grill, Shawarma, Kabab, Chicken, Pizza → Food
+- Players Den, Magic Planet, or arcade-related → Entertainment
+- ATM Withdrawal, CL ATM, Cash Withdrawal → Other
+- Bank fee, Fall below fee, Service charge → Bills
+
+CRITICAL: Default to "Other" ONLY when the merchant is truly unrecognizable after consulting all mappings above. If there is any plausible category match, use it. Generic POS codes like POS-XX/XX/XX should be analyzed by the merchant name that follows them.`;
 
 const model = getModel(systemInstruction);
 
