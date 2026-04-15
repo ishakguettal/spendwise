@@ -1,17 +1,10 @@
-node_modules/
-.env
-*.db
-server/db/*.sqlite
 
-node_modules
-.env
 *.db
 *.sqlite
-server/db/*.sqlite
-
 .claude/
-
-.claude/
-server/db/*.sqlite-*
+.env
 CLAUDE.md
-.claude/
+node_modules
+node_modules/
+server/db/*.sqlite
+server/db/*.sqlite-*
