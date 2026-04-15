@@ -129,6 +129,11 @@ export default function StatementUploadModal({ open, onClose }) {
             ))}
           </div>
 
+          {/* Currency hint */}
+          <p className="text-xs text-neutral-600">
+            Currency will be auto-detected from your statement. Amounts are stored in AED and converted to your display currency.
+          </p>
+
           {/* File upload zone */}
           {mode === 'file' && (
             <div

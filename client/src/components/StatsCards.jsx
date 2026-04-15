@@ -1,8 +1,5 @@
 import { useApp } from '../context/AppContext';
-
-function fmt(n) {
-  return `AED ${Math.round(n ?? 0).toLocaleString()}`;
-}
+import { formatCurrency } from '../lib/formatCurrency';
 
 function Card({ label, value, colorClass }) {
   return (
@@ -14,13 +11,14 @@ function Card({ label, value, colorClass }) {
 }
 
 export default function StatsCards() {
-  const { summary } = useApp();
+  const { summary, displayCurrency } = useApp();
   const income   = summary?.income   ?? 0;
   const expenses = summary?.expenses ?? 0;
   const net      = summary?.net      ?? 0;
 
   // When the month has no transactions every value is 0 — render muted
   const hasData = income > 0 || expenses > 0;
+  const fmt = (n) => formatCurrency(n, displayCurrency);
 
   return (
     <div className="grid grid-cols-3 gap-4">

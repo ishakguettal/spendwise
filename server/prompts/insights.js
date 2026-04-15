@@ -96,22 +96,27 @@ function sanitize(raw) {
  * @param {object} baselines - 3-month category averages
  * @returns {Promise<{observations: Array<{title, detail, trend, sentiment}>}>}
  */
-export async function generateInsights(monthlyData, monthly_summary, baselines) {
+export async function generateInsights(monthlyData, monthly_summary, baselines, displayCurrency = 'AED') {
+  const cur = displayCurrency;
   const rawLines = monthlyData
     .map(({ month, transactions }) => {
       const txLines = transactions
         .slice(0, 40)
         .map(
           (tx) =>
-            `${tx.date} | ${tx.type} | AED ${tx.amount} | ${tx.category} | ${tx.description ?? '—'}`
+            `${tx.date} | ${tx.type} | ${cur} ${tx.amount} | ${tx.category} | ${tx.description ?? '—'}`
         )
         .join('\n');
       return `=== ${month} (${transactions.length} transactions) ===\n${txLines || '(no transactions)'}`;
     })
     .join('\n\n');
 
+  const currencyNote = cur !== 'AED'
+    ? `All amounts in this data have been converted to ${cur}. Reference ${cur} in all observations.\n\n`
+    : '';
+
   const userMsg = [
-    '## monthly_summary (totals + month-over-month deltas)',
+    currencyNote + '## monthly_summary (totals + month-over-month deltas)',
     JSON.stringify(monthly_summary, null, 2),
     '',
     '## baselines (3-month averages)',

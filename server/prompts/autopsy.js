@@ -48,13 +48,18 @@ function sanitize(raw) {
   };
 }
 
-export async function autopsyStatement(text, transactions) {
+export async function autopsyStatement(text, transactions, displayCurrency = 'AED') {
+  const cur = displayCurrency;
   const txLines = transactions
     .slice(0, 60)
-    .map(tx => `${tx.date} | ${tx.type} | AED ${tx.amount} | ${tx.description ?? '—'} | ${tx.category}`)
+    .map(tx => `${tx.date} | ${tx.type} | ${cur} ${tx.amount} | ${tx.description ?? '—'} | ${tx.category}`)
     .join('\n');
 
-  const userMsg = `Extracted transactions:\n${txLines}\n\nStatement text (first 2000 chars):\n${text.slice(0, 2000)}`;
+  const currencyNote = cur !== 'AED'
+    ? `Note: All amounts have been converted to ${cur}. Reference ${cur} in your output.\n\n`
+    : '';
+
+  const userMsg = `${currencyNote}Extracted transactions:\n${txLines}\n\nStatement text (first 2000 chars):\n${text.slice(0, 2000)}`;
 
   let rawText;
   try {

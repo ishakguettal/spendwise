@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../db/database.js';
 import { generateInsights } from '../prompts/insights.js';
+import { getRate } from '../lib/exchangeRates.js';
 
 const router = Router();
 
@@ -144,15 +145,36 @@ router.get('/', async (req, res) => {
   }
 
   // ── Pre-compute structured context for the LLM ──────────────────────────────
-  const rawSummaries   = computeMonthlySummary(monthlyData);
+  const rawSummaries    = computeMonthlySummary(monthlyData);
   const monthly_summary = computeDeltas(rawSummaries);
   const baselines       = computeBaselines(rawSummaries);
+
+  // Convert all pre-computed amounts to display_currency
+  const { display_currency } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
+  const dispRate = await getRate('AED', display_currency);
+
+  const scale = (n) => n * dispRate;
+
+  const monthly_summary_disp = monthly_summary.map(m => ({
+    ...m,
+    income:       scale(m.income),
+    expenses:     scale(m.expenses),
+    savings:      scale(m.savings),
+    net_cash_flow: scale(m.net_cash_flow),
+    by_category:  Object.fromEntries(Object.entries(m.by_category).map(([k, v]) => [k, scale(v)])),
+    // deltas are percentages — no scaling needed
+  }));
+
+  const baselines_disp = {
+    top_categories: baselines.top_categories.map(c => ({ ...c, avg_monthly: scale(c.avg_monthly) })),
+    avg_monthly_total_expenses: scale(baselines.avg_monthly_total_expenses),
+  };
 
   // ── LLM call with one retry on any failure ───────────────────────────────────
   let result;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      result = await generateInsights(monthlyData, monthly_summary, baselines);
+      result = await generateInsights(monthlyData, monthly_summary_disp, baselines_disp, display_currency);
       break;
     } catch (err) {
       console.error(`[GET /insights] attempt ${attempt} failed:`, err.message);

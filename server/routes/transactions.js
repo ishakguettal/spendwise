@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/database.js';
 import { invalidateInsightsCache } from '../helpers/invalidateInsightsCache.js';
 import { categorizeTransaction } from '../prompts/categorize.js';
+import { convert } from '../lib/exchangeRates.js';
 
 const router = Router();
 
@@ -10,6 +11,8 @@ export const VALID_CATEGORIES = [
   'Entertainment', 'Shopping', 'Health', 'Education', 'Travel',
   'Income', 'Savings', 'Other',
 ];
+
+export const VALID_CURRENCIES = ['AED', 'USD', 'EUR', 'GBP'];
 
 const VALID_TYPES = ['income', 'expense', 'savings'];
 
@@ -60,6 +63,11 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: `type is required and must be one of: ${VALID_TYPES.join(', ')}` });
   }
 
+  // Currency handling: default to AED; reject unknown currencies
+  const currency = req.body.currency ?? 'AED';
+  if (!VALID_CURRENCIES.includes(currency))
+    return res.status(400).json({ error: `currency must be one of: ${VALID_CURRENCIES.join(', ')}` });
+
   // Savings type always gets 'Savings', regardless of what was sent
   if (type === 'savings') {
     category = 'Savings';
@@ -80,10 +88,14 @@ router.post('/', async (req, res) => {
   const errors = validateFields({ type, amount, date, category });
   if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
+  // Normalize to AED for storage; keep original for display
+  const original_amount = amount;
+  const aed_amount = currency !== 'AED' ? await convert(amount, currency, 'AED') : amount;
+
   const result = db.prepare(
-    `INSERT INTO transactions (type, category, amount, date, description, source)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(type, category, amount, date, description ?? null, source ?? 'manual');
+    `INSERT INTO transactions (type, category, amount, date, description, source, currency, original_amount)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(type, category, aed_amount, date, description ?? null, source ?? 'manual', currency, original_amount);
 
   invalidateInsightsCache(date);
 
@@ -92,22 +104,31 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/transactions/:id
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Transaction not found' });
 
   const type        = req.body.type        ?? existing.type;
-  const amount      = req.body.amount      ?? existing.amount;
   const date        = req.body.date        ?? existing.date;
   const description = req.body.description !== undefined ? req.body.description : existing.description;
   const category    = req.body.category    ?? existing.category;
 
-  const errors = validateFields({ type, amount, date, category });
+  // Currency/amount update: recalculate AED amount if either field changes
+  const currency        = VALID_CURRENCIES.includes(req.body.currency) ? req.body.currency : (existing.currency ?? 'AED');
+  const original_amount = req.body.amount !== undefined ? req.body.amount : (existing.original_amount ?? existing.amount);
+  let   aed_amount;
+  if (req.body.amount !== undefined || req.body.currency !== undefined) {
+    aed_amount = currency !== 'AED' ? await convert(original_amount, currency, 'AED') : original_amount;
+  } else {
+    aed_amount = existing.amount; // unchanged
+  }
+
+  const errors = validateFields({ type, amount: aed_amount, date, category });
   if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
   db.prepare(
-    `UPDATE transactions SET type=?, category=?, amount=?, date=?, description=? WHERE id=?`
-  ).run(type, category, amount, date, description, existing.id);
+    `UPDATE transactions SET type=?, category=?, amount=?, date=?, description=?, currency=?, original_amount=? WHERE id=?`
+  ).run(type, category, aed_amount, date, description, currency, original_amount, existing.id);
 
   invalidateInsightsCache(existing.date);
   if (date !== existing.date) invalidateInsightsCache(date);

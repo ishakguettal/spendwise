@@ -1,22 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../lib/formatCurrency';
 
 const CATEGORIES = [
   'Food','Groceries','Transport','Rent','Bills','Subscriptions',
   'Entertainment','Shopping','Health','Education','Travel','Income','Savings','Other',
 ];
 
-function fmt(n) { return Math.round(n).toLocaleString(); }
-
 function amountColor(type) {
   if (type === 'income')  return 'text-emerald-400';
   if (type === 'expense') return 'text-red-400';
   return 'text-sky-400';
-}
-
-function amountDisplay(t) {
-  const prefix = t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '';
-  return `${prefix}AED ${fmt(t.amount)}`;
 }
 
 function formatDateHeader(dateStr) {
@@ -67,7 +61,7 @@ function IconDelete() {
 }
 
 export default function TransactionsSection() {
-  const { transactions, selectedMonth, openEditModal, openDeleteModal } = useApp();
+  const { transactions, selectedMonth, openEditModal, openDeleteModal, displayCurrency, aedToDisplayRate } = useApp();
   const [filterCategory, setFilterCategory] = useState('');
   const [filterType,     setFilterType]     = useState('');
   const [search,         setSearch]         = useState('');
@@ -198,6 +192,7 @@ export default function TransactionsSection() {
             ) : groups.map(([date, txs]) => {
               const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
               const income   = txs.filter(t => t.type === 'income').reduce((s, t)  => s + t.amount, 0);
+              const fmtDisp = (n) => formatCurrency(n * aedToDisplayRate, displayCurrency);
               return (
                 <>
                   {/* Date group header */}
@@ -209,14 +204,19 @@ export default function TransactionsSection() {
                         </span>
                         <span className="text-xs text-neutral-600 tabular-nums">
                           {txs.length} txn{txs.length !== 1 ? 's' : ''}
-                          {expenses > 0 && ` • −AED ${fmt(expenses)}`}
-                          {income   > 0 && ` • +AED ${fmt(income)}`}
+                          {expenses > 0 && ` • −${fmtDisp(expenses)}`}
+                          {income   > 0 && ` • +${fmtDisp(income)}`}
                         </span>
                       </div>
                     </td>
                   </tr>
                   {/* Transaction rows */}
-                  {txs.map((t) => (
+                  {txs.map((t) => {
+                    const dispAmount = t.amount * aedToDisplayRate;
+                    const prefix = t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '';
+                    // Show original currency subscript when it differs from display currency
+                    const showOriginal = t.currency && t.currency !== displayCurrency && t.original_amount != null;
+                    return (
                     <tr key={t.id}
                       className="border-b border-neutral-900 hover:bg-neutral-800/30 transition-colors duration-150 group"
                       style={{ height: 30 }}>
@@ -231,7 +231,12 @@ export default function TransactionsSection() {
                       </td>
                       <td className="pr-4 text-neutral-600 capitalize">{t.type}</td>
                       <td className={`text-right font-medium tabular-nums ${amountColor(t.type)}`}>
-                        {amountDisplay(t)}
+                        <span>{prefix}{formatCurrency(dispAmount, displayCurrency)}</span>
+                        {showOriginal && (
+                          <span className="block text-[10px] font-normal text-neutral-600">
+                            {t.currency} {Math.round(t.original_amount).toLocaleString()}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -246,7 +251,8 @@ export default function TransactionsSection() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </>
               );
             })}

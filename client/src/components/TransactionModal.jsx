@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../api';
+import { SUPPORTED_CURRENCIES } from '../lib/formatCurrency';
 
 const CATEGORIES = [
   'Food','Groceries','Transport','Rent','Bills','Subscriptions',
@@ -10,9 +11,9 @@ const CATEGORIES = [
 const TYPES = ['income', 'expense', 'savings'];
 
 export default function TransactionModal({ open, transaction, onClose }) {
-  const { refetch, addToast } = useApp();
+  const { refetch, addToast, displayCurrency } = useApp();
 
-  const [form, setForm]               = useState({ type: 'expense', amount: '', date: '', category: '', description: '' });
+  const [form, setForm]               = useState({ type: 'expense', amount: '', date: '', category: '', description: '', currency: 'AED' });
   const [errors, setErrors]           = useState({});
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,18 +27,19 @@ export default function TransactionModal({ open, transaction, onClose }) {
     if (transaction) {
       setForm({
         type:        transaction.type,
-        amount:      String(transaction.amount),
+        // Show the original entered amount/currency when editing
+        amount:      String(transaction.original_amount ?? transaction.amount),
+        currency:    transaction.currency ?? 'AED',
         date:        transaction.date,
         category:    transaction.category,
         description: transaction.description ?? '',
       });
     } else {
-      // '' category = "Auto-categorize with AI" (backend handles it)
-      setForm({ type: 'expense', amount: '', date: today, category: '', description: '' });
+      setForm({ type: 'expense', amount: '', date: today, category: '', description: '', currency: displayCurrency });
     }
     setErrors({});
     setSubmitError('');
-  }, [open, transaction]);
+  }, [open, transaction, displayCurrency]);
 
   // Esc to close
   useEffect(() => {
@@ -77,9 +79,10 @@ export default function TransactionModal({ open, transaction, onClose }) {
     setSubmitError('');
     try {
       const payload = {
-        type:   form.type,
-        amount: Number(form.amount),
-        date:   form.date,
+        type:     form.type,
+        amount:   Number(form.amount),
+        currency: form.currency,
+        date:     form.date,
         // omit category if empty → backend will auto-categorize via Gemini
         // force 'Savings' for savings type (backend also enforces this)
         ...(form.type === 'savings'
@@ -156,13 +159,17 @@ export default function TransactionModal({ open, transaction, onClose }) {
             </div>
           </div>
 
-          {/* Amount */}
+          {/* Amount + Currency */}
           <div>
             <label className="text-xs uppercase tracking-wide text-neutral-500 block mb-2">Amount</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-500 select-none pointer-events-none">
-                AED
-              </span>
+            <div className="flex gap-2">
+              <select
+                value={form.currency}
+                onChange={field('currency')}
+                className="bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2 text-sm text-neutral-400 focus:border-neutral-600 focus:outline-none transition-colors duration-150 shrink-0"
+              >
+                {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
               <input
                 type="number"
                 min="0.01"
@@ -170,7 +177,7 @@ export default function TransactionModal({ open, transaction, onClose }) {
                 value={form.amount}
                 onChange={field('amount')}
                 placeholder="0"
-                className={`${inputCls(errors.amount)} pl-12 tabular-nums`}
+                className={`${inputCls(errors.amount)} tabular-nums flex-1`}
               />
             </div>
             {errors.amount && <p className="text-xs text-red-400 mt-1.5">{errors.amount}</p>}

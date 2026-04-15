@@ -112,22 +112,25 @@ function sanitize(raw, goalIds) {
  * @param {boolean} context.insufficient_history
  */
 export async function generatePlan(context) {
-  const { goals, monthlyHistory, monthly_net_average, unallocated_pool, insufficient_history } = context;
+  const { goals, monthlyHistory, monthly_net_average, unallocated_pool, insufficient_history, displayCurrency = 'AED' } = context;
+  const cur = displayCurrency;
 
   const goalLines = goals.map(g =>
-    `  • [id=${g.id}] "${g.name}" | target: AED ${g.target_amount} | allocated: AED ${g.allocated} | remaining: AED ${Math.max(0, g.target_amount - g.allocated)} | priority: ${g.priority} | days_remaining: ${g.days_remaining} | months_remaining: ${Math.max(1, Math.ceil(g.days_remaining / 30))}`
+    `  • [id=${g.id}] "${g.name}" | target: ${cur} ${Math.round(g.target_amount)} | allocated: ${cur} ${Math.round(g.allocated)} | remaining: ${cur} ${Math.round(Math.max(0, g.target_amount - g.allocated))} | priority: ${g.priority} | days_remaining: ${g.days_remaining} | months_remaining: ${Math.max(1, Math.ceil(g.days_remaining / 30))}`
   ).join('\n');
 
   const historyLines = monthlyHistory.map(m => {
-    const catLines = m.by_category.map(c => `      ${c.category}: AED ${Math.round(c.total)}`).join('\n');
-    return `  ${m.month}: income AED ${Math.round(m.income)}, expenses AED ${Math.round(m.expenses)}, net AED ${Math.round(m.income - m.expenses)}\n    By category:\n${catLines}`;
+    const catLines = m.by_category.map(c => `      ${c.category}: ${cur} ${Math.round(c.total)}`).join('\n');
+    return `  ${m.month}: income ${cur} ${Math.round(m.income)}, expenses ${cur} ${Math.round(m.expenses)}, net ${cur} ${Math.round(m.income - m.expenses)}\n    By category:\n${catLines}`;
   }).join('\n');
 
+  const currencyNote = cur !== 'AED' ? `All monetary values are in ${cur}.\n\n` : '';
+
   const userMsg = [
-    `FINANCIAL CONTEXT`,
+    `${currencyNote}FINANCIAL CONTEXT`,
     `insufficient_history: ${insufficient_history}`,
-    `monthly_net_average (income − expenses): AED ${Math.round(monthly_net_average)}`,
-    `unallocated_pool (saved but not yet assigned): AED ${Math.round(unallocated_pool)}`,
+    `monthly_net_average (income − expenses): ${cur} ${Math.round(monthly_net_average)}`,
+    `unallocated_pool (saved but not yet assigned): ${cur} ${Math.round(unallocated_pool)}`,
     ``,
     `ACTIVE GOALS (${goals.length}):`,
     goalLines,

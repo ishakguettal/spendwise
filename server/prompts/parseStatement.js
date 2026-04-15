@@ -11,6 +11,7 @@ You are a financial data extractor. Extract all transactions from bank statement
 Return a JSON object with a single key "transactions" — an array where each item has:
 - "type": "income" or "expense" only (never "savings")
 - "amount": positive number, no currency symbols
+- "currency": the ISO currency code of this transaction — one of: AED, USD, EUR, GBP. Detect from statement header (look for "Currency: XXX", "USD", "EUR", "GBP", or " AED " patterns). Default to "AED" if unclear.
 - "date": YYYY-MM-DD
 - "description": brief plain-English description
 - "category": one of: ${ALL_STATEMENT_CATEGORIES.join(', ')}
@@ -57,6 +58,8 @@ function cleanAndParse(text) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+const VALID_CURRENCIES = ['AED', 'USD', 'EUR', 'GBP'];
+
 function validateAndNormalize(transactions) {
   return transactions
     .filter(tx => {
@@ -68,6 +71,7 @@ function validateAndNormalize(transactions) {
     .map(tx => ({
       type:        tx.type,
       amount:      tx.amount,
+      currency:    VALID_CURRENCIES.includes(tx.currency) ? tx.currency : 'AED',
       date:        tx.date,
       description: typeof tx.description === 'string' ? tx.description : null,
       category:    VALID_CATEGORIES.includes(tx.category)

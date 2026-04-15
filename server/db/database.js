@@ -10,7 +10,7 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Create all 5 tables on boot. statements first — transactions FK references it.
+// Create all tables on boot. statements first — transactions FK references it.
 db.exec(`
   CREATE TABLE IF NOT EXISTS statements (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,15 +21,17 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS transactions (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    type         TEXT    NOT NULL CHECK(type IN ('income','expense','savings')),
-    category     TEXT    NOT NULL,
-    amount       REAL    NOT NULL CHECK(amount > 0),
-    date         TEXT    NOT NULL,
-    description  TEXT,
-    source       TEXT    NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','statement')),
-    statement_id INTEGER REFERENCES statements(id) NULL,
-    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    type            TEXT    NOT NULL CHECK(type IN ('income','expense','savings')),
+    category        TEXT    NOT NULL,
+    amount          REAL    NOT NULL CHECK(amount > 0),
+    date            TEXT    NOT NULL,
+    description     TEXT,
+    source          TEXT    NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','statement')),
+    statement_id    INTEGER REFERENCES statements(id) NULL,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    currency        TEXT    NOT NULL DEFAULT 'AED',
+    original_amount REAL
   );
 
   CREATE TABLE IF NOT EXISTS goals (
@@ -63,6 +65,27 @@ db.exec(`
     content_json TEXT    NOT NULL,
     generated_at TEXT    NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS exchange_rates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    base_currency   TEXT    NOT NULL,
+    target_currency TEXT    NOT NULL,
+    rate            REAL    NOT NULL,
+    fetched_at      TEXT    NOT NULL,
+    UNIQUE(base_currency, target_currency)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_settings (
+    id               INTEGER PRIMARY KEY,
+    display_currency TEXT    NOT NULL DEFAULT 'AED'
+  );
 `);
+
+// Migrate existing databases: add currency columns to transactions if absent
+try { db.exec(`ALTER TABLE transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'AED'`); } catch {}
+try { db.exec(`ALTER TABLE transactions ADD COLUMN original_amount REAL`); } catch {}
+
+// Ensure the single settings row exists
+db.prepare(`INSERT OR IGNORE INTO user_settings (id, display_currency) VALUES (1, 'AED')`).run();
 
 export default db;

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import db from '../db/database.js';
 import { generatePlan } from '../prompts/plan.js';
+import { getRate } from '../lib/exchangeRates.js';
 
 const router = Router();
 
@@ -141,13 +142,35 @@ router.post('/plan', async (_req, res) => {
     ? totalNet / monthsWithData.length
     : 0;
 
+  // ── Convert amounts to display_currency ───────────────────────────────────
+  const { display_currency } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
+  const dispRate = await getRate('AED', display_currency);
+  const scale    = (n) => n * dispRate;
+
+  const enrichedGoalsDisp = enrichedGoals.map(g => ({
+    ...g,
+    target_amount: scale(g.target_amount),
+    allocated:     scale(g.allocated),
+  }));
+
+  const monthlyHistoryDisp = monthlyHistory.map(m => ({
+    ...m,
+    income:       scale(m.income),
+    expenses:     scale(m.expenses),
+    by_category:  m.by_category.map(c => ({ ...c, total: scale(c.total) })),
+  }));
+
   // ── LLM call with one retry on parse failure ───────────────────────────────
   let result;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       result = await generatePlan({
-        goals: enrichedGoals, monthlyHistory, monthly_net_average,
-        unallocated_pool, insufficient_history,
+        goals: enrichedGoalsDisp,
+        monthlyHistory: monthlyHistoryDisp,
+        monthly_net_average: scale(monthly_net_average),
+        unallocated_pool: scale(unallocated_pool),
+        insufficient_history,
+        displayCurrency: display_currency,
       });
       break;
     } catch (err) {

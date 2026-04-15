@@ -27,6 +27,10 @@ export function AppProvider({ children }) {
   // ── Savings ───────────────────────────────────────────────────────────────
   const [savings, setSavings] = useState(null);
 
+  // ── Currency ──────────────────────────────────────────────────────────────
+  const [displayCurrency,   setDisplayCurrencyState] = useState('AED');
+  const [aedToDisplayRate,  setAedToDisplayRate]     = useState(1);
+
   // ── Insights state ────────────────────────────────────────────────────────
   const [insights,        setInsights]        = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -117,6 +121,29 @@ export function AppProvider({ children }) {
     }
   }, [selectedMonth]);
 
+  // Fetch settings (currency) once on mount — before other data so rate is ready
+  useEffect(() => {
+    api.getSettings()
+      .then(({ display_currency, aed_to_display_rate }) => {
+        setDisplayCurrencyState(display_currency ?? 'AED');
+        setAedToDisplayRate(aed_to_display_rate ?? 1);
+      })
+      .catch(() => {}); // non-fatal — defaults to AED/1
+  }, []);
+
+  // Change display currency: persist to server, update rate, refetch summary
+  const setDisplayCurrency = useCallback(async (code) => {
+    try {
+      const { display_currency, aed_to_display_rate } = await api.updateSettings({ display_currency: code });
+      setDisplayCurrencyState(display_currency);
+      setAedToDisplayRate(aed_to_display_rate ?? 1);
+      // Refetch summary + insights (they convert server-side); transactions are rate-scaled client-side
+      await Promise.all([fetchSummary(), fetchInsights()]);
+    } catch (err) {
+      console.error('[setDisplayCurrency]', err.message);
+    }
+  }, [fetchSummary, fetchInsights]);
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -153,6 +180,8 @@ export function AppProvider({ children }) {
       transactions, summary, loading, refetch,
       // global state
       hasAnyTransactions,
+      // currency
+      displayCurrency, setDisplayCurrency, aedToDisplayRate,
       // goals
       goals, fetchGoals,
       // savings

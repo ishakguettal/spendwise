@@ -3,11 +3,12 @@ import multer from 'multer';
 import { createHash } from 'crypto';
 import { PDFParse } from 'pdf-parse';
 import db from '../db/database.js';
-import { VALID_CATEGORIES } from './transactions.js';
+import { VALID_CATEGORIES, VALID_CURRENCIES } from './transactions.js';
 import { invalidateInsightsCache } from '../helpers/invalidateInsightsCache.js';
 import { parseStatement } from '../prompts/parseStatement.js';
 import { autopsyStatement } from '../prompts/autopsy.js';
 import { sanitizeStatementText } from '../lib/sanitizeStatementText.js';
+import { convert, getRate } from '../lib/exchangeRates.js';
 
 const router = Router();
 
@@ -122,17 +123,27 @@ router.post('/upload', conditionalUpload, async (req, res) => {
   }
 
   // ── Insert transactions with source='statement' ───────────────────────────
+  // Each parsed tx may have its own currency; normalize to AED for storage.
   const insertStmt = db.prepare(
-    `INSERT INTO transactions (type, category, amount, date, description, source, statement_id)
-     VALUES (?, ?, ?, ?, ?, 'statement', ?)`
+    `INSERT INTO transactions (type, category, amount, date, description, source, statement_id, currency, original_amount)
+     VALUES (?, ?, ?, ?, ?, 'statement', ?, ?, ?)`
   );
 
   const insertedTransactions = [];
 
+  // Pre-compute AED amounts for all transactions (may need async getRate)
+  const txsWithAed = await Promise.all(parsedTransactions.map(async (tx) => {
+    const currency = VALID_CURRENCIES.includes(tx.currency) ? tx.currency : 'AED';
+    const original_amount = tx.amount;
+    const aed_amount = currency !== 'AED' ? await convert(tx.amount, currency, 'AED') : tx.amount;
+    return { ...tx, currency, original_amount, aed_amount };
+  }));
+
   db.transaction(() => {
-    for (const tx of parsedTransactions) {
+    for (const tx of txsWithAed) {
       const result = insertStmt.run(
-        tx.type, tx.category, tx.amount, tx.date, tx.description ?? null, statementId
+        tx.type, tx.category, tx.aed_amount, tx.date, tx.description ?? null,
+        statementId, tx.currency, tx.original_amount
       );
       insertedTransactions.push(
         db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
@@ -142,9 +153,18 @@ router.post('/upload', conditionalUpload, async (req, res) => {
   })();
 
   // ── Prompt 2: autopsy ─────────────────────────────────────────────────────
+  // Convert tx amounts to display_currency before sending to LLM
+  const { display_currency: dispCur } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
+  const dispRate = await getRate('AED', dispCur);
+
+  const autopsyTxs = insertedTransactions.map(tx => ({
+    ...tx,
+    amount: tx.amount * dispRate,
+  }));
+
   let autopsy = null;
   try {
-    autopsy = await autopsyStatement(text, parsedTransactions);
+    autopsy = await autopsyStatement(text, autopsyTxs, dispCur);
     db.prepare('UPDATE statements SET autopsy_json = ? WHERE id = ?')
       .run(JSON.stringify(autopsy), statementId);
   } catch (err) {

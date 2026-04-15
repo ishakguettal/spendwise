@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import db from '../db/database.js';
+import { getRate } from '../lib/exchangeRates.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ function getPreviousMonths(endMonth, count) {
 }
 
 // GET /api/summary?month=YYYY-MM
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { month } = req.query;
   if (!month || !MONTH_RE.test(month))
     return res.status(400).json({ error: 'month query param required in YYYY-MM format' });
@@ -65,7 +66,22 @@ router.get('/', (req, res) => {
     return { month: mo, income: inc, expenses: exp };
   });
 
-  res.json({ income, expenses, net, savings_added, by_category, trend_6mo });
+  // Convert all totals to display_currency at the response boundary
+  const { display_currency } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
+  const rate = await getRate('AED', display_currency);
+
+  const scale = (n) => n * rate;
+
+  res.json({
+    income:       scale(income),
+    expenses:     scale(expenses),
+    net:          scale(net),
+    savings_added: scale(savings_added),
+    by_category:  by_category.map(c => ({ ...c, total: scale(c.total) })),
+    trend_6mo:    trend_6mo.map(t => ({ ...t, income: scale(t.income), expenses: scale(t.expenses) })),
+    display_currency,
+    aed_to_display_rate: rate,
+  });
 });
 
 export default router;

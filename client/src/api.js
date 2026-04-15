@@ -65,4 +65,7 @@ export const api = {
   getSavings:  ()                       => request('/api/savings'),
   allocate:    (goal_id, amount)        => request('/api/savings/allocate',   { method: 'POST', body: JSON.stringify({ goal_id, amount }) }),
   reallocate:  (from_goal_id, to_goal_id, amount) => request('/api/savings/reallocate', { method: 'POST', body: JSON.stringify({ from_goal_id, to_goal_id, amount }) }),
+
+  getSettings:    ()     => request('/api/settings'),
+  updateSettings: (data) => request('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
 };

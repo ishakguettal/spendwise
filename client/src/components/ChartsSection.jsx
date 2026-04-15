@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../lib/formatCurrency';
 
 const PIE_COLORS = [
   '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -14,24 +15,24 @@ function shortMonth(yyyyMM) {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short' });
 }
 
-function PieTooltip({ active, payload }) {
+function PieTooltip({ active, payload, displayCurrency }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-sm">
       <p className="text-neutral-300 font-medium">{payload[0].name}</p>
-      <p className="text-neutral-100">AED {Math.round(payload[0].value).toLocaleString()}</p>
+      <p className="text-neutral-100">{formatCurrency(payload[0].value, displayCurrency)}</p>
     </div>
   );
 }
 
-function BarTooltip({ active, payload, label }) {
+function BarTooltip({ active, payload, label, displayCurrency }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-sm space-y-1">
       <p className="text-neutral-500 text-xs">{label}</p>
       {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.fill }}>
-          {p.dataKey}: AED {Math.round(p.value).toLocaleString()}
+          {p.dataKey}: {formatCurrency(p.value, displayCurrency)}
         </p>
       ))}
     </div>
@@ -39,7 +40,7 @@ function BarTooltip({ active, payload, label }) {
 }
 
 export default function ChartsSection() {
-  const { summary } = useApp();
+  const { summary, displayCurrency } = useApp();
 
   const pieData = (summary?.by_category ?? []).filter((d) => d.total > 0);
   const barData = (summary?.trend_6mo ?? []).map((d) => ({
@@ -75,7 +76,7 @@ export default function ChartsSection() {
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip content={<PieTooltip />} />
+                <Tooltip content={<PieTooltip displayCurrency={displayCurrency} />} />
               </PieChart>
             </ResponsiveContainer>
             {/* Legend */}
@@ -105,7 +106,7 @@ export default function ChartsSection() {
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Tooltip content={<BarTooltip displayCurrency={displayCurrency} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
             <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
             <Bar dataKey="Spent"  fill="#ef4444" radius={[3, 3, 0, 0]} />
           </BarChart>
