@@ -3,7 +3,7 @@
  *
  * Purpose: ensure that bank-identifying metadata — account numbers, IBANs,
  * bank reference codes, contact details — never leaves the user's session.
- * Only normalized transaction data (dates, amounts, merchant descriptions)
+ * Only normalised transaction data (dates, amounts, merchant descriptions)
  * is forwarded to Gemini or stored in the database.
  *
  * Design principle: prefer to leave something through than to redact a real
@@ -15,34 +15,68 @@
  */
 
 // ── Line-level removal ────────────────────────────────────────────────────────
-// A line is dropped if it starts with one of these labels (case-insensitive,
-// colon optional) — we match at the start so a transaction description that
-// happens to contain e.g. "address" further along is NOT removed.
+// A line is dropped if it starts with one of these labels.
+// Match requires the prefix to be immediately followed by a space, colon, or
+// end-of-string — so "IBAN:AE..." (no space) and "IBAN" alone both match,
+// but "ibanAccount" does not.
 
 const SENSITIVE_LINE_PREFIXES = [
+  // Account identity
   'account holder',
   'account name',
   'account number',
   'account no',
+  'account #',
+  'account id',
+  'client name',
   'customer name',
+  'customer id',
+  'customer no',
+  'customer reference',
+  // Banking codes
   'iban',
   'swift',
+  'bic',
   'sort code',
-  'statement period',
+  'routing number',
+  'routing no',
+  'branch code',
+  'branch name',
+  'branch address',
+  'ifsc',            // India
+  'bsb',             // Australia
+  // Personal details
   'address',
   'email',
   'mobile',
   'phone',
   'tel',
+  'fax',
+  'national id',
+  'emirates id',
+  'civil id',        // Kuwait / Bahrain
+  'passport',
+  'date of birth',
+  'dob',
+  // Statement metadata
+  'statement period',
+  'statement date',
+  'prepared for',
+  'prepared by',
 ];
 
-// Compiled once: matches "Label:" or "Label " at start of (trimmed) line
+// Lookahead: prefix must be followed by whitespace, colon, or end-of-string.
+// This catches "IBAN: ...", "IBAN:AE...", "IBAN\n" (standalone label), etc.
 const SENSITIVE_PREFIX_RE = new RegExp(
-  '^(' + SENSITIVE_LINE_PREFIXES.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\s*:?\\s',
+  '^(' +
+    SENSITIVE_LINE_PREFIXES
+      .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|') +
+  ')(?=[\\s:]|$)',
   'i'
 );
 
-// "Page X of Y" or "X / Y" as an entire line (page counters)
+// "Page X of Y" or bare "X / Y" counting lines
 const PAGE_NUMBER_RE = /^\s*(?:page\s+)?\d+\s*[/of]+\s*\d+\s*$/i;
 
 // Lines that are just the column headers of a transaction table
@@ -54,57 +88,72 @@ const BANK_NAME_LINE_RE = /^\s*[A-Z][A-Z\s&.'-]{4,}(?:BANK|PJSC|LLC|CORP|N\.A\.|
 
 function isSensitiveLine(line) {
   const trimmed = line.trim();
-  if (SENSITIVE_PREFIX_RE.test(trimmed)) return true;
-  if (PAGE_NUMBER_RE.test(trimmed)) return true;
-  if (TABLE_HEADER_RE.test(trimmed)) return true;
-  if (BANK_NAME_LINE_RE.test(trimmed)) return true;
-  return false;
+  return (
+    SENSITIVE_PREFIX_RE.test(trimmed) ||
+    PAGE_NUMBER_RE.test(trimmed)       ||
+    TABLE_HEADER_RE.test(trimmed)      ||
+    BANK_NAME_LINE_RE.test(trimmed)
+  );
 }
 
 // ── Inline redaction patterns ─────────────────────────────────────────────────
 // Applied to lines that survive the line-removal pass.
-// Each pattern must be narrow enough that it cannot match a merchant name.
+// Each pattern must be narrow enough to never match a merchant name.
 
 const REDACT_PATTERNS = [
-  // IBAN: country code (2 letters) + check digits (2) + BBAN (11-30 chars).
-  // Total minimum 15 chars. IBANs are never just merchant names.
+  // ── IBAN ──────────────────────────────────────────────────────────────────
+  // Handles BOTH compact (AE070260001015283794601) and space-separated display
+  // format (AE07 0260 0010 1528 3794 601).
+  // Structure: 2-letter country code + 2 check digits + BBAN (11–30 chars).
   { name: 'ibans',
-    re: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g },
+    re: /\b[A-Z]{2}\d{2}(?:[A-Z0-9]{4}\s?){2,7}[A-Z0-9]{1,4}\b/g },
 
-  // Card number 4-4-4-4 (with optional spaces or hyphens between groups)
+  // ── SWIFT / BIC codes ─────────────────────────────────────────────────────
+  // 8 or 11 chars: 4-letter bank + 2-letter country + 2 location + optional 3 branch.
+  // Only caught when a SWIFT/BIC/Bank Code label immediately precedes them,
+  // to avoid colliding with legitimate uppercase product names.
+  { name: 'swift_bic',
+    re: /(?:SWIFT|BIC|Bank\s+Code)\s*[:/]\s*[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/gi,
+    replacer: (match) => match.replace(/[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/i, '[REDACTED]') },
+
+  // ── Card numbers ──────────────────────────────────────────────────────────
+  // 16-digit groups of 4, with optional spaces or hyphens between groups
   { name: 'cards',
     re: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g },
 
-  // Masked account numbers: 3+ X or * followed by 4+ digits
-  // e.g. XXXXX1506, ****1234. Also M-XXXXX1506 style.
+  // ── Masked account numbers ────────────────────────────────────────────────
+  // 3+ X or * followed by 4+ digits — e.g. XXXXX1506, ****1234, M-XXXXX1506
   { name: 'masked_accounts',
     re: /\bM?-?[X*]{3,}\d{4,}\b/gi },
 
-  // Long bare digit sequences: 10+ consecutive digits not adjacent to a decimal.
-  // Account/card numbers are 10-16 digits; amounts and dates never reach 10.
+  // ── Long bare digit sequences ─────────────────────────────────────────────
+  // 10+ consecutive digits not adjacent to a decimal point.
+  // Account/card numbers are 10–16 digits; monetary amounts and dates never reach 10.
   { name: 'account_numbers',
     re: /(?<![.,])\b\d{10,}\b(?![.,]\d)/g },
 
-  // Context-aware: 7-12 digit numbers that appear right after transfer/account keywords.
-  // Catches "MOBN TRANSFER FROM 29114924 TO 29126037" without touching amounts or dates.
-  // The keyword is preserved; only the digit portion is replaced.
+  // ── Context-aware transfer account numbers ────────────────────────────────
+  // Catches "MOBN TRANSFER FROM 29114924 TO 29126037" (7–12-digit numbers that
+  // appear directly after a financial keyword). The keyword is preserved.
   { name: 'transfer_accounts',
     re: /\b(FROM|TO|ACCOUNT|ACCT|ACC\s+NO|TRANSFER|TRF|TXN|TRANS)\s+(\d{7,12})\b/gi,
     replacer: (_, keyword) => `${keyword} [REDACTED]` },
 
-  // Known bank reference code formats — whitelist only, no generic matching:
-  //   FT + 8 or more alphanumerics  (e.g. FT26063BTF5D)
-  //   ROC/ + 8 or more digits       (e.g. ROC/03202606)
-  //   "REF:", "Ref:", or "Reference:" followed by an alphanumeric blob
-  //   "TXN:" or "Trans ID:" followed by an alphanumeric blob
+  // ── Bank reference codes ──────────────────────────────────────────────────
+  // Strict whitelist — only known structural prefixes to avoid catching merchant names.
+  //   FT + 8+ alphanumeric   (e.g. FT26063BTF5D — ENBD/ADCB)
+  //   CHG + 8+ alphanumeric  (charge reference, common in Gulf banks)
+  //   ROC/ + 8+ digits       (e.g. ROC/03202606)
+  //   REF/Reference/TXN/Transaction ID/E2E ID: followed by 6+ alphanumeric
   { name: 'references',
-    re: /\bFT[A-Z0-9]{8,}\b|\bROC\/\d{8,}\b|(?:REF|Ref|Reference|TXN|Trans\s+ID)\s*:\s*[A-Z0-9]{6,}/g },
+    re: /\b(?:FT|CHG)[A-Z0-9]{8,}\b|\bROC\/\d{8,}\b|(?:REF|Ref|Reference|TXN|Trans(?:action)?\s+ID|E2E\s+ID)\s*:\s*[A-Z0-9-]{6,}/g },
 
-  // Email addresses
+  // ── Email addresses ───────────────────────────────────────────────────────
   { name: 'emails',
     re: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g },
 
-  // International phone numbers starting with +
+  // ── Phone numbers ─────────────────────────────────────────────────────────
+  // International format (+XX...) — local formats are too ambiguous to catch safely
   { name: 'phones',
     re: /\+\d{8,15}/g },
 ];
@@ -113,6 +162,11 @@ const REDACT_PATTERNS = [
 
 /**
  * Sanitize raw bank statement text before sending to the LLM or storing.
+ *
+ * Returns cleaned text plus a report: how many lines were dropped and how
+ * many inline substitutions were made per pattern. Lines dropped by the
+ * prefix filter are scanned for IBAN/account patterns so those counts are
+ * included in the report even when the whole line is removed.
  *
  * @param {string} rawText
  * @returns {{
@@ -126,28 +180,34 @@ export function sanitizeStatementText(rawText) {
   const kept = [];
   let removed_lines_count = 0;
 
-  for (const line of lines) {
-    if (isSensitiveLine(line)) {
-      removed_lines_count++;
-    } else {
-      kept.push(line);
-    }
-  }
-
   // Initialise counts
   const redactions_applied = Object.fromEntries(
     REDACT_PATTERNS.map(p => [p.name, 0])
   );
 
-  // Apply inline redactions
+  for (const line of lines) {
+    if (isSensitiveLine(line)) {
+      removed_lines_count++;
+      // Count PII patterns within the removed line so the report is accurate
+      // even when the whole line is dropped rather than inline-redacted.
+      for (const { name, re } of REDACT_PATTERNS) {
+        const m = line.match(new RegExp(re.source, re.flags));
+        if (m) redactions_applied[name] += m.length;
+      }
+    } else {
+      kept.push(line);
+    }
+  }
+
+  // Apply inline redactions to surviving lines
   const redacted = kept.map(line => {
     let out = line;
     for (const { name, re, replacer } of REDACT_PATTERNS) {
       const before = out;
       out = replacer ? out.replace(re, replacer) : out.replace(re, '[REDACTED]');
       if (out !== before) {
-        const original_matches = before.match(new RegExp(re.source, re.flags));
-        redactions_applied[name] += original_matches ? original_matches.length : 1;
+        const hits = before.match(new RegExp(re.source, re.flags));
+        redactions_applied[name] += hits ? hits.length : 1;
       }
     }
     return out;

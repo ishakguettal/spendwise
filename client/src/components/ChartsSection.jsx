@@ -1,6 +1,6 @@
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis,
+  AreaChart, Area, XAxis, CartesianGrid,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../lib/formatCurrency';
@@ -25,15 +25,17 @@ function PieTooltip({ active, payload, displayCurrency }) {
   );
 }
 
-function BarTooltip({ active, payload, label, displayCurrency }) {
+function LineTooltip({ active, payload, label, displayCurrency }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-sm space-y-1">
-      <p className="text-neutral-500 text-xs">{label}</p>
+    <div className="bg-neutral-950/95 border border-neutral-700/60 rounded-xl px-3 py-2.5 text-sm space-y-1.5 shadow-xl backdrop-blur-sm">
+      <p className="text-neutral-500 text-xs font-medium tracking-wide uppercase">{label}</p>
       {payload.map((p) => (
-        <p key={p.dataKey} style={{ color: p.fill }}>
-          {p.dataKey}: {formatCurrency(p.value, displayCurrency)}
-        </p>
+        <div key={p.dataKey} className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.stroke }} />
+          <span className="text-neutral-400">{p.dataKey}</span>
+          <span className="text-neutral-100 font-medium ml-auto pl-3">{formatCurrency(p.value, displayCurrency)}</span>
+        </div>
       ))}
     </div>
   );
@@ -95,21 +97,67 @@ export default function ChartsSection() {
         )}
       </div>
 
-      {/* Bar chart */}
+      {/* Line chart */}
       <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
         <p className="text-sm font-medium text-neutral-400 mb-3">6-Month Trend</p>
         <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={barData} barGap={2} barCategoryGap="30%">
+          <AreaChart data={barData} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
+            <defs>
+              {/* Gradient fills */}
+              <linearGradient id="gradIncome" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#10b981" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gradSpent" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              </linearGradient>
+              {/* Glow filters */}
+              <filter id="glowGreen" x="-20%" y="-50%" width="140%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              <filter id="glowRed" x="-20%" y="-50%" width="140%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <CartesianGrid
+              strokeDasharray="4 4"
+              stroke="rgba(255,255,255,0.05)"
+              vertical={false}
+            />
             <XAxis
               dataKey="month"
               tick={{ fill: '#737373', fontSize: 12 }}
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={<BarTooltip displayCurrency={displayCurrency} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Spent"  fill="#ef4444" radius={[3, 3, 0, 0]} />
-          </BarChart>
+            <Tooltip
+              content={<LineTooltip displayCurrency={displayCurrency} />}
+              cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '4 4' }}
+            />
+            <Area
+              type="monotone"
+              dataKey="Income"
+              stroke="#10b981"
+              strokeWidth={2}
+              fill="url(#gradIncome)"
+              dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: '#10b981', stroke: 'rgba(16,185,129,0.3)', strokeWidth: 4 }}
+              filter="url(#glowGreen)"
+            />
+            <Area
+              type="monotone"
+              dataKey="Spent"
+              stroke="#ef4444"
+              strokeWidth={2}
+              fill="url(#gradSpent)"
+              dot={{ r: 3, fill: '#ef4444', strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: '#ef4444', stroke: 'rgba(239,68,68,0.3)', strokeWidth: 4 }}
+              filter="url(#glowRed)"
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>

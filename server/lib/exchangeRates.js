@@ -17,37 +17,49 @@ const API_URL     = 'https://open.er-api.com/v6/latest/AED';
 
 // ── Fetch & persist ───────────────────────────────────────────────────────────
 
+// Single in-flight promise — concurrent callers wait on the same fetch
+// rather than each firing their own API request.
+let _fetchPromise = null;
+
 async function fetchAndCache() {
-  try {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.result !== 'success') throw new Error(`API error: ${json['error-type']}`);
+  if (_fetchPromise) return _fetchPromise;
 
-    const { rates } = json;
-    const now = new Date().toISOString();
+  _fetchPromise = (async () => {
+    try {
+      const res = await fetch(API_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.result !== 'success') throw new Error(`API error: ${json['error-type']}`);
 
-    const upsert = db.prepare(`
-      INSERT INTO exchange_rates (base_currency, target_currency, rate, fetched_at)
-      VALUES ('AED', ?, ?, ?)
-      ON CONFLICT(base_currency, target_currency)
-      DO UPDATE SET rate = excluded.rate, fetched_at = excluded.fetched_at
-    `);
+      const { rates } = json;
+      const now = new Date().toISOString();
 
-    for (const cur of SUPPORTED) {
-      if (cur === 'AED') continue;
-      if (typeof rates[cur] === 'number') upsert.run(cur, rates[cur], now);
+      const upsert = db.prepare(`
+        INSERT INTO exchange_rates (base_currency, target_currency, rate, fetched_at)
+        VALUES ('AED', ?, ?, ?)
+        ON CONFLICT(base_currency, target_currency)
+        DO UPDATE SET rate = excluded.rate, fetched_at = excluded.fetched_at
+      `);
+
+      for (const cur of SUPPORTED) {
+        if (cur === 'AED') continue;
+        if (typeof rates[cur] === 'number') upsert.run(cur, rates[cur], now);
+      }
+
+      console.log(
+        '[exchangeRates] Refreshed:',
+        SUPPORTED.filter(c => c !== 'AED').map(c => `AED→${c}=${rates[c]?.toFixed(4)}`).join('  ')
+      );
+      return true;
+    } catch (err) {
+      console.warn('[exchangeRates] Fetch failed:', err.message);
+      return false;
+    } finally {
+      _fetchPromise = null;
     }
+  })();
 
-    console.log(
-      '[exchangeRates] Refreshed:',
-      SUPPORTED.filter(c => c !== 'AED').map(c => `AED→${c}=${rates[c]?.toFixed(4)}`).join('  ')
-    );
-    return true;
-  } catch (err) {
-    console.warn('[exchangeRates] Fetch failed:', err.message);
-    return false;
-  }
+  return _fetchPromise;
 }
 
 // ── Cache reads ───────────────────────────────────────────────────────────────
@@ -80,15 +92,22 @@ export async function getRate(from, to) {
 
   // All stored rates are AED-based
   if (from === 'AED') {
-    let rate = freshRate(to);
-    if (rate !== null) return rate;
+    // Fast path: valid cached rate
+    const cached = freshRate(to);
+    if (cached !== null) return cached;
 
+    // Cache expired (or empty) — fetch once; concurrent calls share the promise
     await fetchAndCache();
 
-    rate = staleRate(to);
-    if (rate !== null) {
-      console.warn(`[exchangeRates] Using stale rate AED→${to}: ${rate}`);
-      return rate;
+    // Use freshly written rate if fetch succeeded
+    const fresh = freshRate(to);
+    if (fresh !== null) return fresh;
+
+    // Fetch failed — fall back to whatever stale value we have
+    const stale = staleRate(to);
+    if (stale !== null) {
+      console.warn(`[exchangeRates] Using stale rate AED→${to} after failed refresh: ${stale}`);
+      return stale;
     }
     console.warn(`[exchangeRates] No rate for AED→${to}, using 1`);
     return 1;
