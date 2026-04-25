@@ -33,17 +33,20 @@ Statement text passes through a sanitization layer before reaching any external 
 
 ## Local Setup
 
+```bash
 git clone https://github.com/ishakguettal/spendwise.git
 cd spendwise
 cd server && cp .env.example .env
 npm install && npm run dev
 cd client
 npm install && npm run dev
+```
 
 Runs at localhost:5173 (frontend) / localhost:3001 (API). Requires Node 18+.
 
 ## Project Structure
 
+```
 /client/src/components — Dashboard UI (15+ components)
 /client/src/context — Global state (AppContext.jsx)
 /client/src/lib — Currency formatting
@@ -53,5 +56,6 @@ Runs at localhost:5173 (frontend) / localhost:3001 (API). Requires Node 18+.
 /server/prompts — 5 LLM prompt templates (categorize, parseStatement, autopsy, plan, insights)
 /server/llm — LLM client config
 /server/lib — PII sanitizer, exchange rate cache (12h TTL, stale fallback)
+```
 
 Built by Ishak Guettal — BSc AI & Computer Science, University of Birmingham Dubai.
