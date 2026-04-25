@@ -1,4 +1,4 @@
-import { getModel } from '../llm/gemini.js';
+import { getModel } from '../llm/groq.js';
 
 const systemInstruction = `Respond with ONLY a JSON object. No prose, no markdown, no code fences, no preamble.
 
@@ -21,10 +21,10 @@ Return a JSON object with exactly these fields:
 
 - "category_cuts": array of up to 5 objects identifying spending categories where meaningful reductions are possible:
   - "category": string
-  - "current_avg": number — average monthly AED spend based on provided history
+  - "current_avg": number — average monthly spend (in the display currency) based on provided history
   - "target_avg": number — suggested reduced monthly amount
-  - "reduction": number — AED saved per month (current_avg - target_avg)
-  - "reason": string — concise explanation of why this category was chosen
+  - "reduction": number — saved per month (current_avg - target_avg)
+  - "reason": string — 1-2 sentences naming the actual merchants and amounts driving the spend, then the concrete cut: e.g. "You spent [CUR] 749 at Apple Store and [CUR] 467 at Amazon.ae last month — skipping one of those purchases frees up [CUR] 467 toward your goal." If no individual merchant stands out, name the top 2 transactions in this category by amount. Never write generic advice like "this category is high" — always cite real numbers from the transaction data.
 
 - "overall_feasible": boolean — true only if ALL goals can be met on their original deadlines without exceeding 60% of monthly_net_average
 
@@ -112,7 +112,7 @@ function sanitize(raw, goalIds) {
  * @param {boolean} context.insufficient_history
  */
 export async function generatePlan(context) {
-  const { goals, monthlyHistory, monthly_net_average, unallocated_pool, insufficient_history, displayCurrency = 'AED' } = context;
+  const { goals, monthlyHistory, recentExpenses = [], monthly_net_average, unallocated_pool, insufficient_history, displayCurrency = 'AED' } = context;
   const cur = displayCurrency;
 
   const goalLines = goals.map(g =>
@@ -123,6 +123,10 @@ export async function generatePlan(context) {
     const catLines = m.by_category.map(c => `      ${c.category}: ${cur} ${Math.round(c.total)}`).join('\n');
     return `  ${m.month}: income ${cur} ${Math.round(m.income)}, expenses ${cur} ${Math.round(m.expenses)}, net ${cur} ${Math.round(m.income - m.expenses)}\n    By category:\n${catLines}`;
   }).join('\n');
+
+  const expenseLines = recentExpenses
+    .map(tx => `  ${tx.month} | ${tx.date} | ${cur} ${Math.round(tx.amount)} | ${tx.category} | ${tx.description ?? '—'}`)
+    .join('\n') || '  (none)';
 
   const currencyNote = cur !== 'AED' ? `All monetary values are in ${cur}.\n\n` : '';
 
@@ -137,6 +141,9 @@ export async function generatePlan(context) {
     ``,
     `TRANSACTION HISTORY (${monthlyHistory.length} months, oldest first):`,
     historyLines,
+    ``,
+    `RECENT EXPENSE TRANSACTIONS (top 30/month by amount, oldest first — use these for merchant-specific category_cuts):`,
+    expenseLines,
   ].join('\n');
 
   let rawText;

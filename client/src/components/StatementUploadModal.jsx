@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { api } from '../api';
 
 export default function StatementUploadModal({ open, onClose }) {
-  const { refetch, addToast, setAutopsy } = useApp();
+  const { refetch, addToast, setAutopsy, selectedMonth } = useApp();
 
   const [mode, setMode]             = useState('file');   // 'file' | 'paste'
   const [dragOver, setDragOver]     = useState(false);
@@ -32,6 +32,22 @@ export default function StatementUploadModal({ open, onClose }) {
 
   if (!open) return null;
 
+  function pollForAutopsy(month) {
+    let attempts = 0;
+    const id = setInterval(async () => {
+      attempts++;
+      try {
+        const data = await api.getAutopsy(month);
+        if (data?.autopsy) {
+          setAutopsy(data.autopsy);
+          clearInterval(id);
+          return;
+        }
+      } catch {}
+      if (attempts >= 15) clearInterval(id); // stop after 30 seconds
+    }, 2000);
+  }
+
   async function processFile(file) {
     if (!file) return;
     if (file.type !== 'application/pdf') {
@@ -42,8 +58,8 @@ export default function StatementUploadModal({ open, onClose }) {
     setLoading(true);
     try {
       const result = await api.uploadStatement(file);
-      if (result.autopsy) setAutopsy(result.autopsy);
       await refetch();
+      pollForAutopsy(selectedMonth);
       const count = result.transactions?.length ?? 0;
       addToast(`Imported ${count} transaction${count !== 1 ? 's' : ''}${result.cached ? ' (cached)' : ''}`);
       onClose();
@@ -64,8 +80,8 @@ export default function StatementUploadModal({ open, onClose }) {
     setLoading(true);
     try {
       const result = await api.uploadStatementText(pasteText);
-      if (result.autopsy) setAutopsy(result.autopsy);
       await refetch();
+      pollForAutopsy(selectedMonth);
       const count = result.transactions?.length ?? 0;
       addToast(`Imported ${count} transaction${count !== 1 ? 's' : ''}${result.cached ? ' (cached)' : ''}`);
       onClose();

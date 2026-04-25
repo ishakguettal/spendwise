@@ -138,9 +138,11 @@ router.get('/', async (req, res) => {
       .all(`${mo}-%`),
   }));
 
-  // Check we have at least something to analyse
-  const totalTx = monthlyData.reduce((sum, m) => sum + m.transactions.length, 0);
-  if (totalTx === 0) {
+  // Insights are keyed to the selected month. If that month has no transactions,
+  // return empty — don't synthesise insights from neighbouring months, which would
+  // make every empty month look identical to its predecessor.
+  const selectedMonthTxCount = monthlyData[monthlyData.length - 1].transactions.length;
+  if (selectedMonthTxCount === 0) {
     return res.json({ observations: [] });
   }
 

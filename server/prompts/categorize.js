@@ -1,4 +1,4 @@
-import { getModel } from '../llm/gemini.js';
+import { getModel } from '../llm/groq.js';
 
 const VALID_CATEGORIES = [
   'Food', 'Groceries', 'Transport', 'Rent', 'Bills', 'Subscriptions',

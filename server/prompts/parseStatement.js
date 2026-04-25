@@ -1,4 +1,4 @@
-import { getModel } from '../llm/gemini.js';
+import { getModel } from '../llm/groq.js';
 import { VALID_CATEGORIES } from '../routes/transactions.js';
 
 // Income is valid for income-type; exclude Savings (never from statement)

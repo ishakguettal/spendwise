@@ -12,6 +12,77 @@ import { convert, getRate } from '../lib/exchangeRates.js';
 
 const router = Router();
 
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+// Tracks statement IDs currently being autopsy-generated so concurrent
+// triggers (upload background task + GET /autopsy) don't double-run.
+const generatingAutopsy = new Set();
+
+async function runAutopsyInBackground(statementId, month) {
+  if (generatingAutopsy.has(statementId)) return;
+  generatingAutopsy.add(statementId);
+  try {
+    const txRows = db.prepare('SELECT * FROM transactions WHERE statement_id = ?').all(statementId);
+    const { display_currency: dispCur } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
+    const dispRate = await getRate('AED', dispCur);
+    const autopsyTxs = txRows.map(tx => ({ ...tx, amount: tx.amount * dispRate }));
+    const autopsy = await autopsyStatement('', autopsyTxs, dispCur);
+    db.prepare('UPDATE statements SET autopsy_json = ? WHERE id = ?').run(JSON.stringify(autopsy), statementId);
+  } catch (err) {
+    const kind = err.message.includes('timeout') ? 'timeout'
+      : err.message.includes('parse') ? 'parse error'
+      : 'unknown error';
+    console.error(`[autopsy regen] background generation failed for ${month} — ${kind}:`, err.message);
+  } finally {
+    generatingAutopsy.delete(statementId);
+  }
+}
+
+// GET /api/statements/autopsy?month=YYYY-MM
+// Returns the stored autopsy for that month, or triggers background generation
+// if a statement exists for that month but autopsy is missing.
+router.get('/autopsy', (req, res) => {
+  const { month } = req.query;
+  if (!month || !MONTH_RE.test(month))
+    return res.status(400).json({ error: 'month query param required in YYYY-MM format' });
+
+  // Check for a completed autopsy first
+  const done = db.prepare(`
+    SELECT s.autopsy_json
+    FROM   statements s
+    WHERE  s.autopsy_json IS NOT NULL
+      AND  EXISTS (
+             SELECT 1 FROM transactions t
+             WHERE  t.statement_id = s.id
+               AND  t.date LIKE ?
+           )
+    ORDER  BY s.uploaded_at DESC
+    LIMIT  1
+  `).get(`${month}-%`);
+
+  if (done) return res.json({ autopsy: JSON.parse(done.autopsy_json) });
+
+  // No autopsy — check for a statement whose autopsy is missing or in-flight
+  const pending = db.prepare(`
+    SELECT s.id
+    FROM   statements s
+    WHERE  s.autopsy_json IS NULL
+      AND  EXISTS (
+             SELECT 1 FROM transactions t
+             WHERE  t.statement_id = s.id
+               AND  t.date LIKE ?
+           )
+    ORDER  BY s.uploaded_at DESC
+    LIMIT  1
+  `).get(`${month}-%`);
+
+  if (!pending) return res.json({ autopsy: null });
+
+  // Statement exists but autopsy failed or hasn't run yet — regenerate
+  res.json({ autopsy: null, generating: true });
+  runAutopsyInBackground(pending.id, month);
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
@@ -41,14 +112,6 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     // ── PDF upload path ──────────────────────────────────────────────────────
     filename = req.file.originalname;
     hash = createHash('sha256').update(req.file.buffer).digest('hex');
-
-    // Return cached result if this exact PDF was processed before
-    const cached = db.prepare('SELECT * FROM statements WHERE hash = ?').get(hash);
-    if (cached?.autopsy_json) {
-      const autopsy = JSON.parse(cached.autopsy_json);
-      const transactions = db.prepare('SELECT * FROM transactions WHERE statement_id = ?').all(cached.id);
-      return res.json({ transactions, autopsy, cached: true });
-    }
 
     // Extract text from PDF
     try {
@@ -80,13 +143,6 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     text = req.body.text;
     hash = createHash('sha256').update(text).digest('hex');
 
-    const cached = db.prepare('SELECT * FROM statements WHERE hash = ?').get(hash);
-    if (cached?.autopsy_json) {
-      const autopsy = JSON.parse(cached.autopsy_json);
-      const transactions = db.prepare('SELECT * FROM transactions WHERE statement_id = ?').all(cached.id);
-      return res.json({ transactions, autopsy, cached: true });
-    }
-
     if (text.trim().length < 50) {
       return res.status(400).json({ error: 'Text is too short to process.' });
     }
@@ -99,18 +155,29 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     return res.status(400).json({ error: 'Provide a PDF file or a text body.' });
   }
 
-  // ── Save statement record (autopsy populated after) ───────────────────────
-  const stmtResult = db.prepare(
-    'INSERT INTO statements (filename, hash) VALUES (?, ?)'
-  ).run(filename, hash);
-  const statementId = stmtResult.lastInsertRowid;
+  // ── Save statement record — reuse and reset if this hash was uploaded before ─
+  let statementId;
+  let isNewStatement = false;
+  const existing = db.prepare('SELECT id FROM statements WHERE hash = ?').get(hash);
+  if (existing) {
+    // Invalidate insights cache for every month this statement had transactions in
+    const oldDates = db.prepare('SELECT DISTINCT date FROM transactions WHERE statement_id = ?').all(existing.id);
+    for (const { date } of oldDates) invalidateInsightsCache(date);
+    db.prepare('DELETE FROM transactions WHERE statement_id = ?').run(existing.id);
+    db.prepare('UPDATE statements SET autopsy_json = NULL, filename = ? WHERE id = ?').run(filename, existing.id);
+    statementId = existing.id;
+  } else {
+    const stmtResult = db.prepare('INSERT INTO statements (filename, hash) VALUES (?, ?)').run(filename, hash);
+    statementId = stmtResult.lastInsertRowid;
+    isNewStatement = true;
+  }
 
   // ── Prompt 1: extract transactions ────────────────────────────────────────
   let parsedTransactions;
   try {
     parsedTransactions = await parseStatement(text);
   } catch (err) {
-    db.prepare('DELETE FROM statements WHERE id = ?').run(statementId);
+    if (isNewStatement) db.prepare('DELETE FROM statements WHERE id = ?').run(statementId);
     const kind = err.message.includes('timeout') ? 'timeout'
       : err.message.includes('parse') ? 'parse error'
       : err.message.includes('valid') ? 'validation error'
@@ -152,30 +219,14 @@ router.post('/upload', conditionalUpload, async (req, res) => {
     }
   })();
 
-  // ── Prompt 2: autopsy ─────────────────────────────────────────────────────
-  // Convert tx amounts to display_currency before sending to LLM
-  const { display_currency: dispCur } = db.prepare('SELECT display_currency FROM user_settings WHERE id=1').get() ?? { display_currency: 'AED' };
-  const dispRate = await getRate('AED', dispCur);
+  // ── Respond immediately — autopsy runs in the background ────────────────
+  res.status(201).json({ transactions: insertedTransactions, cached: false });
 
-  const autopsyTxs = insertedTransactions.map(tx => ({
-    ...tx,
-    amount: tx.amount * dispRate,
-  }));
-
-  let autopsy = null;
-  try {
-    autopsy = await autopsyStatement(text, autopsyTxs, dispCur);
-    db.prepare('UPDATE statements SET autopsy_json = ? WHERE id = ?')
-      .run(JSON.stringify(autopsy), statementId);
-  } catch (err) {
-    // Non-fatal — transactions are already saved; autopsy is a bonus
-    const kind = err.message.includes('timeout') ? 'timeout'
-      : err.message.includes('parse') ? 'parse error'
-      : 'unknown error';
-    console.error(`[statements/upload] Prompt 2 (autopsyStatement) failed — ${kind}:`, err.message);
-  }
-
-  res.status(201).json({ transactions: insertedTransactions, autopsy, cached: false });
+  // ── Prompt 2: autopsy (fire-and-forget) ───────────────────────────────────
+  // Use the shared runAutopsyInBackground so a concurrent GET /autopsy poll
+  // won't spawn a second generation for the same statement.
+  const uploadMonth = insertedTransactions[0]?.date?.slice(0, 7) ?? '';
+  runAutopsyInBackground(statementId, uploadMonth);
 });
 
 export default router;

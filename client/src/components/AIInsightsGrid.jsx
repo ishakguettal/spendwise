@@ -29,9 +29,6 @@ function ObservationCard({ title, detail, trend, sentiment }) {
   const { borderCls, iconCls } = SENTIMENT[sentiment] ?? SENTIMENT.neutral;
   const showArrow = sentiment !== 'neutral' && trend !== 'flat';
   const Icon = trend === 'up' ? ArrowUp : ArrowDown;
-  // Debug: verify sentiment field is present in data
-  console.log('[ObservationCard] sentiment:', sentiment, '→ borderCls:', borderCls);
-
   return (
     <div className={`rounded-xl border border-neutral-700/80 bg-neutral-900 p-4 shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)] ${borderCls}`}>
       <div className="flex items-start gap-2 mb-1.5">
@@ -59,9 +56,9 @@ function SkeletonCard() {
 }
 
 export default function AIInsightsGrid() {
-  const { insights, insightsLoading } = useApp();
+  const { insights, insightsLoading, autopsyLoading } = useApp();
 
-  if (insightsLoading) {
+  if (insightsLoading || autopsyLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <SkeletonCard />

@@ -135,6 +135,16 @@ router.post('/plan', async (_req, res) => {
     return { month: mo, income, expenses, by_category };
   });
 
+  // Top expense transactions across the history window — used by LLM to cite merchants
+  const recentExpenses = months.flatMap(mo => {
+    const p = `${mo}-%`;
+    return db.prepare(`
+      SELECT date, description, category, amount
+      FROM transactions WHERE type='expense' AND date LIKE ?
+      ORDER BY amount DESC LIMIT 30
+    `).all(p).map(tx => ({ ...tx, month: mo }));
+  });
+
   const monthsWithData       = monthlyHistory.filter(m => m.income > 0 || m.expenses > 0);
   const insufficient_history = monthsWithData.length < 3;
   const totalNet             = monthlyHistory.reduce((s, m) => s + (m.income - m.expenses), 0);
@@ -160,6 +170,11 @@ router.post('/plan', async (_req, res) => {
     by_category:  m.by_category.map(c => ({ ...c, total: scale(c.total) })),
   }));
 
+  const recentExpensesDisp = recentExpenses.map(tx => ({
+    ...tx,
+    amount: scale(tx.amount),
+  }));
+
   // ── LLM call with one retry on parse failure ───────────────────────────────
   let result;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -167,6 +182,7 @@ router.post('/plan', async (_req, res) => {
       result = await generatePlan({
         goals: enrichedGoalsDisp,
         monthlyHistory: monthlyHistoryDisp,
+        recentExpenses: recentExpensesDisp,
         monthly_net_average: scale(monthly_net_average),
         unallocated_pool: scale(unallocated_pool),
         insufficient_history,

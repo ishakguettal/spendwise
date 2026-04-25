@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api';
 
 const AppContext = createContext(null);
@@ -15,8 +15,10 @@ export function AppProvider({ children }) {
   const [summary,       setSummary]       = useState(null);
   const [loading,       setLoading]       = useState(true);
 
-  // ── Autopsy state (session-only) ──────────────────────────────────────────
+  // ── Autopsy state ─────────────────────────────────────────────────────────
   const [autopsy, setAutopsy] = useState(null);
+  // Kept in sync with selectedMonth so background poll callbacks can detect stale firings.
+  const selectedMonthRef = useRef(selectedMonth);
 
   // ── Global existence flag (true once any tx exists anywhere) ─────────────
   const [hasAnyTransactions, setHasAnyTransactions] = useState(null); // null = not yet loaded
@@ -34,6 +36,9 @@ export function AppProvider({ children }) {
   // ── Insights state ────────────────────────────────────────────────────────
   const [insights,        setInsights]        = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+
+  // ── Autopsy loading state ─────────────────────────────────────────────────
+  const [autopsyLoading, setAutopsyLoading] = useState(false);
 
   // ── Modal state ───────────────────────────────────────────────────────────
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
@@ -110,6 +115,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const fetchInsights = useCallback(async () => {
+    setInsights(null);       // clear stale data from the previous month immediately
     setInsightsLoading(true);
     try {
       const data = await api.getInsights(selectedMonth);
@@ -119,6 +125,38 @@ export function AppProvider({ children }) {
     } finally {
       setInsightsLoading(false);
     }
+  }, [selectedMonth]);
+
+  // Keep ref in sync so poll callbacks can detect stale firings.
+  useEffect(() => { selectedMonthRef.current = selectedMonth; }, [selectedMonth]);
+
+  const fetchAutopsy = useCallback(async () => {
+    setAutopsy(null);
+    setAutopsyLoading(true);
+    try {
+      const data = await api.getAutopsy(selectedMonth);
+      setAutopsy(data?.autopsy ?? null);
+    } catch {
+      setAutopsy(null);
+    } finally {
+      setAutopsyLoading(false);
+    }
+  }, [selectedMonth]);
+
+  // Called after a statement upload to poll until the background autopsy lands.
+  // Uses selectedMonthRef so callbacks can self-cancel if the user switches months.
+  const pollAutopsy = useCallback(() => {
+    const month = selectedMonth;
+    [5000, 15000, 35000].forEach(delay =>
+      setTimeout(async () => {
+        if (selectedMonthRef.current !== month) return; // user switched months
+        try {
+          const data = await api.getAutopsy(month);
+          if (selectedMonthRef.current !== month) return;
+          if (data?.autopsy) setAutopsy(data.autopsy);
+        } catch {}
+      }, delay)
+    );
   }, [selectedMonth]);
 
   // Fetch settings (currency) once on mount — before other data so rate is ready
@@ -157,10 +195,14 @@ export function AppProvider({ children }) {
     ]).finally(() => setLoading(false));
   }, [fetchTransactions, fetchSummary, fetchGoals, fetchSavings]);
 
-  // Insights run independently so they don't block the main loading spinner
+  // Insights and autopsy run independently so they don't block the main loading spinner
   useEffect(() => {
     fetchInsights();
   }, [fetchInsights]);
+
+  useEffect(() => {
+    fetchAutopsy();
+  }, [fetchAutopsy]);
 
   const refetch = useCallback(() => Promise.all([
     fetchTransactions(),
@@ -168,10 +210,11 @@ export function AppProvider({ children }) {
     fetchGoals(),
     fetchSavings(),
     fetchInsights(),
+    fetchAutopsy(),
     api.hasAnyTransactions()
       .then(({ exists }) => setHasAnyTransactions(exists))
       .catch(() => {}),
-  ]), [fetchTransactions, fetchSummary, fetchGoals, fetchSavings, fetchInsights]);
+  ]), [fetchTransactions, fetchSummary, fetchGoals, fetchSavings, fetchInsights, fetchAutopsy]);
 
   return (
     <AppContext.Provider value={{
@@ -187,9 +230,11 @@ export function AppProvider({ children }) {
       // savings
       savings, fetchSavings,
       // autopsy
-      autopsy, setAutopsy,
+      autopsy, setAutopsy, fetchAutopsy, pollAutopsy,
       // insights
       insights, insightsLoading,
+      // autopsy loading
+      autopsyLoading,
       // modals
       transactionModalOpen, editTransaction, transactionToDelete,
       openAddModal, openEditModal, closeTransactionModal,

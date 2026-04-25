@@ -1,4 +1,4 @@
-import { getModel } from '../llm/gemini.js';
+import { getModel } from '../llm/groq.js';
 
 const systemInstruction = `Respond with ONLY a JSON object. No prose, no markdown, no code fences, no preamble.
 
@@ -38,9 +38,11 @@ Rules for using baselines (personalized historical averages):
   - If current month is within 10% of baseline, describe spending as "in line with your typical pattern"
   - Also compare total expenses to avg_monthly_total_expenses when useful
 
-Rules for using raw_transactions (supplementary detail):
-  - Use raw transactions for patterns the deltas don't capture: unusual one-off merchants, high transaction frequency in a category, suspicious charges
-  - Do not re-compute totals from raw — always use the pre-computed values in monthly_summary
+Rules for using raw_transactions (supplementary detail — REQUIRED, not optional):
+  - Every observation about a spending category MUST name the 1-2 largest individual merchants driving it, with their amounts — e.g. "adding ChatGPT Plus at AED 79.99 drove the subscriptions increase" or "the AED 1,200 charge at Rixos and AED 890 at Hilton account for most of the Hotels spike"
+  - For a new category appearing this month, name the merchant that triggered it
+  - For a category spike or sustained increase, name who you spent the most with
+  - Do not re-compute totals from raw — always use the pre-computed values in monthly_summary for figures; use raw only to identify merchants
 
 General rules:
   - Every observation must reference specific numbers (e.g. "AED 1,200", "up 18%", "3 months in a row")

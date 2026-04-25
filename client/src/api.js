@@ -54,6 +54,7 @@ export const api = {
     }),
 
   getInsights: (month) => request(`/api/insights?month=${month}`),
+  getAutopsy:  (month) => request(`/api/statements/autopsy?month=${month}`),
   hasAnyTransactions: () => request('/api/transactions/any'),
 
   getGoals:      ()         => request('/api/goals'),

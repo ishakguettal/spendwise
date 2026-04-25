@@ -20,8 +20,24 @@ function formatUpdated() {
   return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function AutopsySkeleton() {
+  return (
+    <div className="rounded-xl border border-neutral-700/80 bg-neutral-900 p-5 animate-pulse shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.04)]">
+      <div className="flex gap-5">
+        <div className="w-[100px] h-[100px] rounded-full bg-neutral-800 shrink-0" />
+        <div className="flex-1 space-y-2 pt-2">
+          <div className="h-3 w-1/3 rounded bg-neutral-800" />
+          <div className="h-3 w-full rounded bg-neutral-800" />
+          <div className="h-3 w-4/5 rounded bg-neutral-800" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InsightsSection() {
-  const { autopsy, openUploadModal } = useApp();
+  const { autopsy, autopsyLoading, openUploadModal } = useApp();
+  const loading = autopsyLoading;
 
   return (
     <div className="space-y-6">
@@ -35,13 +51,15 @@ export default function InsightsSection() {
       </div>
 
       {/* Statement Autopsy */}
-      {autopsy ? (
+      {loading ? (
+        <AutopsySkeleton />
+      ) : autopsy ? (
         <AutopsyCard autopsy={autopsy} />
       ) : (
         <AutopsyEmpty onUpload={openUploadModal} />
       )}
 
-      {/* AI Insights grid */}
+      {/* AI Insights grid — passes autopsyLoading so both sections finish together */}
       <AIInsightsGrid />
     </div>
   );
